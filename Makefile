@@ -1,14 +1,19 @@
+TF_BOOTSTRAP_DIR := infrastructure/terraform/bootstrap/state
 TF_DIR := infrastructure/terraform/environments/dev
 APP_DIR := workloads/hello-api
 CHART_DIR := charts/hello-api
 
-.PHONY: fmt fmt-check terraform-validate app-test helm-check image-build
+.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check image-build
 
 fmt:
 	terraform fmt -recursive infrastructure/terraform
 
 fmt-check:
 	terraform fmt -check -recursive infrastructure/terraform
+
+terraform-bootstrap-validate:
+	terraform -chdir=$(TF_BOOTSTRAP_DIR) init -backend=false -input=false
+	terraform -chdir=$(TF_BOOTSTRAP_DIR) validate
 
 terraform-validate:
 	terraform -chdir=$(TF_DIR) init -backend=false -input=false
