@@ -24,7 +24,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Check formatting
-        run: terraform fmt -check -recursive infrastructure/terraform
+        run: terraform fmt -check -diff -recursive infrastructure/terraform
 
       - name: Initialize without backend
         working-directory: infrastructure/terraform/environments/dev
