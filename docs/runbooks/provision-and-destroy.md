@@ -3,6 +3,7 @@
 ## Before provisioning
 
 - Confirm the target Azure subscription and tenant.
+- Complete docs/runbooks/terraform-remote-state.md and verify both Terraform roots use Azure Blob state.
 - Confirm the operator identity can create the listed resources and role assignments.
 - Check selected AKS VM SKU availability in the region.
 - Select a globally unique ACR and Key Vault suffix.
@@ -13,11 +14,12 @@
 
 From the repository root:
 
-1. Sign in with Azure CLI, select the intended non-production subscription, and export ARM_SUBSCRIPTION_ID.
+1. Sign in with Azure CLI and select the intended non-production subscription.
 2. Copy infrastructure/terraform/environments/dev/terraform.tfvars.example to terraform.tfvars.
 3. Edit unique_suffix and replace the documentation-only API-server CIDR with your fixed public egress IP.
-4. Run terraform init, terraform fmt -check, terraform validate, and terraform plan -out=tfplan from infrastructure/terraform/environments/dev.
-5. Review the plan and run terraform apply tfplan.
+4. In infrastructure/terraform/environments/dev, confirm backend.hcl points to the Kaviont state account and run ARM_USE_CLI=true terraform init -backend-config=backend.hcl.
+5. Run terraform fmt -check, terraform validate, and terraform plan -out=tfplan.
+6. Review the plan and run terraform apply tfplan.
 
 The Terraform execution identity needs permission to create Azure resources and role assignments at the required scopes. Do not grant subscription-wide Owner merely to make the example work.
 
@@ -44,7 +46,9 @@ The Terraform execution identity or an administrator must have the Key Vault Sec
 
 Create a non-production demo value with Azure CLI:
 
+```bash
 az keyvault secret set --vault-name "$KEY_VAULT_NAME" --name "platform-demo-token" --value "$(openssl rand -hex 32)" --query id --output tsv
+```
 
 The command prints only the secret resource ID, not the secret value. Do not use a real credential.
 
@@ -73,7 +77,9 @@ Port-forward service hello-api in namespace demo from local port 8080 to service
 
 Expected JSON response:
 
+```json
 {"mode":"azure-key-vault","secret_configured":true}
+```
 
 The endpoint returns only whether the named secret is present and non-empty. It never returns the secret value.
 
@@ -85,12 +91,12 @@ The endpoint returns only whether the named secret is present and non-empty. It 
 - No injected Azure environment variables: confirm the pod label azure.workload.identity/use: true and recreate the pod after changing service-account annotations.
 - Network timeout: the development vault uses its public endpoint. Check DNS and outbound connectivity. Private endpoint routing is not included yet.
 
-## Destroy
+## Destroy the development environment
 
-Uninstall the hello-api Helm release and remove namespace demo before destroying the Terraform environment.
+Uninstall the hello-api Helm release and remove namespace demo before destroying the development environment.
 
 Run terraform plan -destroy -out=destroy.tfplan, review the plan, and then run terraform apply destroy.tfplan.
 
-Retain or delete the Terraform state according to your own state-management policy. Never commit state or plan files.
+Do not destroy the bootstrap state resource group or storage account. It contains the state required to manage and recover this environment. A separate, deliberate state-retirement procedure is required before removing it.
 
 Key Vault uses soft delete and purge protection. A destroyed vault can remain recoverable and its name may not be reusable immediately. Do not disable purge protection merely to simplify the demo teardown.
