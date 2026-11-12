@@ -1,68 +1,96 @@
-# Runbook: provision and destroy the development platform
+# Runbook: provision and deploy the development platform
 
 ## Before provisioning
 
 - Confirm the target Azure subscription and tenant.
 - Confirm the operator identity can create the listed resources and role assignments.
 - Check selected AKS VM SKU availability in the region.
-- Select a globally unique ACR suffix.
+- Select a globally unique ACR and Key Vault suffix.
 - Set the API server allowlist to the operator's fixed public egress IP in CIDR notation.
 - Review the expected cost for the selected region and VM size.
 
 ## Provision
 
-```bash
-az login
-az account set --subscription <subscription-id>
-export ARM_SUBSCRIPTION_ID=<subscription-id>
+From the repository root:
 
-cp infrastructure/terraform/environments/dev/terraform.tfvars.example \
-   infrastructure/terraform/environments/dev/terraform.tfvars
-# Edit unique_suffix and api_server_authorized_ip_ranges.
+1. Sign in with Azure CLI, select the intended non-production subscription, and export ARM_SUBSCRIPTION_ID.
+2. Copy infrastructure/terraform/environments/dev/terraform.tfvars.example to terraform.tfvars.
+3. Edit unique_suffix and replace the documentation-only API-server CIDR with your fixed public egress IP.
+4. Run terraform init, terraform fmt -check, terraform validate, and terraform plan -out=tfplan from infrastructure/terraform/environments/dev.
+5. Review the plan and run terraform apply tfplan.
 
-cd infrastructure/terraform/environments/dev
-terraform init
-terraform fmt -check
-terraform validate
-terraform plan -out=tfplan
-terraform apply tfplan
-```
+The Terraform execution identity needs permission to create Azure resources and role assignments at the required scopes. Do not grant subscription-wide Owner merely to make the example work.
 
 If the first apply fails immediately after a role assignment is created, inspect the Azure error and role propagation state before retrying. Do not apply repeatedly without understanding the failure.
 
-## Connect
+## Connect and read outputs
 
-```bash
-RESOURCE_GROUP=$(terraform output -raw resource_group_name)
-AKS_NAME=$(terraform output -raw aks_cluster_name)
-ACR_NAME=$(terraform output -raw acr_name)
-ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
+From infrastructure/terraform/environments/dev, read these outputs into shell variables:
 
-az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME"
-kubectl get nodes
-az acr login --name "$ACR_NAME"
-```
+- RESOURCE_GROUP from resource_group_name
+- AKS_NAME from aks_cluster_name
+- ACR_NAME from acr_name
+- ACR_LOGIN_SERVER from acr_login_server
+- KEY_VAULT_NAME from key_vault_name
+- KEY_VAULT_URI from key_vault_uri
+- HELLO_API_CLIENT_ID from hello_api_identity_client_id
+- AZURE_TENANT_ID from azure_tenant_id
 
-## Deploy sample API
+Use az aks get-credentials with RESOURCE_GROUP and AKS_NAME, then confirm kubectl get nodes succeeds. Authenticate to ACR with az acr login --name "$ACR_NAME".
 
-```bash
-docker build -t "$ACR_LOGIN_SERVER/hello-api:0.1.0" ../../../../workloads/hello-api
-docker push "$ACR_LOGIN_SERVER/hello-api:0.1.0"
-helm upgrade --install hello-api ../../../../charts/hello-api \
-  --namespace demo --create-namespace \
-  --set image.repository="$ACR_LOGIN_SERVER/hello-api" \
-  --set image.tag=0.1.0
-kubectl rollout status deployment/hello-api -n demo
-```
+## Create the demo secret
+
+The Terraform execution identity or an administrator must have the Key Vault Secrets Officer role on this dedicated development vault.
+
+Create a non-production demo value with Azure CLI:
+
+az keyvault secret set --vault-name "$KEY_VAULT_NAME" --name "platform-demo-token" --value "$(openssl rand -hex 32)" --query id --output tsv
+
+The command prints only the secret resource ID, not the secret value. Do not use a real credential.
+
+## Build and push the sample API
+
+From the repository root, build workloads/hello-api and tag it as $ACR_LOGIN_SERVER/hello-api:0.2.0. Push that image to the project ACR.
+
+## Deploy with federated workload identity
+
+Install or upgrade the hello-api chart into namespace demo with these values:
+
+- workloadIdentity.enabled=true
+- workloadIdentity.clientId=$HELLO_API_CLIENT_ID
+- workloadIdentity.keyVaultUrl=$KEY_VAULT_URI
+- workloadIdentity.secretName=platform-demo-token
+- image.repository=$ACR_LOGIN_SERVER/hello-api
+- image.tag=0.2.0
+
+Wait for kubectl rollout status deployment/hello-api -n demo.
+
+Inspect the service account and pod labels. The service account annotation must contain the managed identity client ID. The pod template must contain azure.workload.identity/use: true. The federated credential trusts only system:serviceaccount:demo:hello-api.
+
+## Verify without disclosing the secret
+
+Port-forward service hello-api in namespace demo from local port 8080 to service port 80. Request http://127.0.0.1:8080/v1/secret-status.
+
+Expected JSON response:
+
+{"mode":"azure-key-vault","secret_configured":true}
+
+The endpoint returns only whether the named secret is present and non-empty. It never returns the secret value.
+
+## Troubleshooting
+
+- 401 or token exchange failure: verify AKS OIDC issuer, FIC issuer, audience, and exact subject.
+- 403 from Key Vault: verify the identity client ID on the service account and the Key Vault Secrets User role assignment. Allow time for role assignment propagation.
+- Secret not found: verify the secret name and vault URI.
+- No injected Azure environment variables: confirm the pod label azure.workload.identity/use: true and recreate the pod after changing service-account annotations.
+- Network timeout: the development vault uses its public endpoint. Check DNS and outbound connectivity. Private endpoint routing is not included yet.
 
 ## Destroy
 
-```bash
-helm uninstall hello-api -n demo || true
-kubectl delete namespace demo --ignore-not-found
-cd infrastructure/terraform/environments/dev
-terraform plan -destroy -out=destroy.tfplan
-terraform apply destroy.tfplan
-```
+Uninstall the hello-api Helm release and remove namespace demo before destroying the Terraform environment.
+
+Run terraform plan -destroy -out=destroy.tfplan, review the plan, and then run terraform apply destroy.tfplan.
 
 Retain or delete the Terraform state according to your own state-management policy. Never commit state or plan files.
+
+Key Vault uses soft delete and purge protection. A destroyed vault can remain recoverable and its name may not be reusable immediately. Do not disable purge protection merely to simplify the demo teardown.
