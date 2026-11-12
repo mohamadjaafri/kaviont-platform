@@ -33,7 +33,7 @@ resource "azurerm_kubernetes_cluster" "this" {
     max_count                    = var.system_pool_max_count
     vnet_subnet_id               = var.aks_subnet_id
     os_sku                       = "AzureLinux3"
-    temporary_name_for_rotation = "tmpnp"
+    temporary_name_for_rotation  = "tmpnp"
 
     upgrade_settings {
       max_surge = "33%"
@@ -53,7 +53,7 @@ resource "azurerm_kubernetes_cluster" "this" {
     azure_rbac_enabled = true
   }
 
-  oidc_issuer_enabled       = true
+  oidc_issuer_enabled        = true
   workload_identity_enabled = true
 
   api_server_access_profile {
