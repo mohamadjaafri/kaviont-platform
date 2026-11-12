@@ -70,5 +70,11 @@ jobs:
       - name: Lint chart
         run: helm lint charts/hello-api
 
-      - name: Render chart
-        run: helm template hello-api charts/hello-api >/dev/null
+      - name: Render chart with Workload Identity enabled
+        run: |
+          helm template hello-api charts/hello-api --namespace demo \
+            --set workloadIdentity.enabled=true \
+            --set-string workloadIdentity.clientId=00000000-0000-0000-0000-000000000001 \
+            --set-string workloadIdentity.keyVaultUrl=https://example.vault.azure.net/ >/tmp/kaviont-rendered.yaml
+          grep -q 'azure.workload.identity/use: "true"' /tmp/kaviont-rendered.yaml
+          grep -q 'azure.workload.identity/client-id:' /tmp/kaviont-rendered.yaml

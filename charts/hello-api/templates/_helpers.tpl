@@ -10,6 +10,14 @@
 {{- end -}}
 {{- end -}}
 
+{{- define "hello-api.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default (include "hello-api.fullname" .) .Values.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "hello-api.labels" -}}
 app.kubernetes.io/name: {{ include "hello-api.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}

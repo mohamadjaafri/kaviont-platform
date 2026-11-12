@@ -1,3 +1,5 @@
+data "azurerm_client_config" "current" {}
+
 locals {
   name_base = "${var.name_prefix}-${var.environment}"
 
@@ -36,6 +38,21 @@ resource "azurerm_container_registry" "platform" {
   tags                = local.common_tags
 }
 
+resource "azurerm_key_vault" "platform" {
+  name                = "kv${replace(local.name_base, "-", "")}${var.unique_suffix}"
+  location            = azurerm_resource_group.platform.location
+  resource_group_name = azurerm_resource_group.platform.name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+  sku_name            = "standard"
+
+  rbac_authorization_enabled    = true
+  soft_delete_retention_days    = 7
+  purge_protection_enabled      = true
+  public_network_access_enabled = true
+
+  tags = local.common_tags
+}
+
 module "aks" {
   source = "../../modules/aks"
 
@@ -55,4 +72,28 @@ module "aks" {
   service_cidr                    = var.service_cidr
   dns_service_ip                  = var.dns_service_ip
   tags                            = local.common_tags
+}
+
+resource "azurerm_user_assigned_identity" "hello_api" {
+  name                = "${local.name_base}-hello-api"
+  location            = azurerm_resource_group.platform.location
+  resource_group_name = azurerm_resource_group.platform.name
+  tags                = local.common_tags
+}
+
+resource "azurerm_federated_identity_credential" "hello_api" {
+  name                = "${local.name_base}-hello-api"
+  resource_group_name = azurerm_resource_group.platform.name
+  parent_id           = azurerm_user_assigned_identity.hello_api.id
+  audience            = ["api://AzureADTokenExchange"]
+  issuer              = module.aks.oidc_issuer_url
+  subject             = "system:serviceaccount:demo:hello-api"
+}
+
+resource "azurerm_role_assignment" "hello_api_key_vault_secrets_user" {
+  scope                = azurerm_key_vault.platform.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_user_assigned_identity.hello_api.principal_id
+
+  skip_service_principal_aad_check = true
 }

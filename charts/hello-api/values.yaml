@@ -8,6 +8,16 @@ image:
 nameOverride: ""
 fullnameOverride: ""
 
+serviceAccount:
+  create: true
+  name: hello-api
+
+workloadIdentity:
+  enabled: false
+  clientId: ""
+  keyVaultUrl: ""
+  secretName: platform-demo-token
+
 service:
   type: ClusterIP
   port: 80

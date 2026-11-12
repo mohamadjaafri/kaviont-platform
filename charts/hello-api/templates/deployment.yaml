@@ -17,7 +17,11 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "hello-api.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- if .Values.workloadIdentity.enabled }}
+        azure.workload.identity/use: "true"
+        {{- end }}
     spec:
+      serviceAccountName: {{ include "hello-api.serviceAccountName" . }}
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -33,6 +37,11 @@ spec:
             - name: http
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
+          env:
+            - name: KEY_VAULT_URL
+              value: {{ .Values.workloadIdentity.keyVaultUrl | quote }}
+            - name: KEY_VAULT_SECRET_NAME
+              value: {{ .Values.workloadIdentity.secretName | quote }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

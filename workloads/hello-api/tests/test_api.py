@@ -12,7 +12,7 @@ def test_root_returns_service_metadata() -> None:
     assert response.json() == {
         "service": "hello-api",
         "status": "running",
-        "version": "0.1.0",
+        "version": "0.2.0",
     }
 
 
@@ -28,3 +28,38 @@ def test_readiness_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ready"}
+
+
+def test_secret_status_uses_local_mode_without_vault(monkeypatch) -> None:
+    monkeypatch.delenv("KEY_VAULT_URL", raising=False)
+
+    response = client.get("/v1/secret-status")
+
+    assert response.status_code == 200
+    assert response.json() == {"mode": "local", "secret_configured": False}
+
+
+def test_secret_status_never_returns_secret_value(monkeypatch) -> None:
+    monkeypatch.setenv("KEY_VAULT_URL", "https://example.vault.azure.net/")
+    monkeypatch.setenv("KEY_VAULT_SECRET_NAME", "platform-demo-token")
+    monkeypatch.setattr("app.main.secret_is_configured", lambda _url, _name: True)
+
+    response = client.get("/v1/secret-status")
+
+    assert response.status_code == 200
+    assert response.json() == {"mode": "azure-key-vault", "secret_configured": True}
+    assert "value" not in response.json()
+
+
+def test_secret_status_returns_safe_error_when_vault_is_unavailable(monkeypatch) -> None:
+    monkeypatch.setenv("KEY_VAULT_URL", "https://example.vault.azure.net/")
+    monkeypatch.setattr(
+        "app.main.secret_is_configured",
+        lambda _url, _name: (_ for _ in ()).throw(RuntimeError("sensitive diagnostic")),
+    )
+
+    response = client.get("/v1/secret-status")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Secret store is unavailable"}
+    assert "sensitive diagnostic" not in response.text
