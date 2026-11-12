@@ -1,0 +1,5 @@
+# Use the same suffix in the development environment.
+subscription_id = null
+location        = "westeurope"
+name_prefix     = "kaviont"
+unique_suffix   = "a9x7"
