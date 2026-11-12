@@ -23,6 +23,7 @@ From the repository root:
 ```bash
 az login
 az account set --subscription "<subscription-id>"
+export ARM_SUBSCRIPTION_ID="$(az account show --query id --output tsv)"
 
 cd infrastructure/terraform/bootstrap/state
 cp terraform.tfvars.example terraform.tfvars
@@ -50,11 +51,7 @@ STATE_STORAGE_ACCOUNT="$(terraform output -raw storage_account_name)"
 
 # Role assignments can take time to propagate. Retry this command after propagation
 # if Azure initially returns an authorization error.
-az storage container create \
-  --name tfstate \
-  --account-name "$STATE_STORAGE_ACCOUNT" \
-  --auth-mode login \
-  --only-show-errors
+az storage container create   --name tfstate   --account-name "$STATE_STORAGE_ACCOUNT"   --auth-mode login   --only-show-errors
 ```
 
 The container is private by default. Do not pass a public access level.
