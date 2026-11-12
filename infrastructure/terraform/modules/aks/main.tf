@@ -18,11 +18,11 @@ resource "azurerm_kubernetes_cluster" "this" {
   dns_prefix                        = var.dns_prefix
   kubernetes_version                = var.kubernetes_version
   sku_tier                          = "Free"
-  automatic_upgrade_channel                 = "patch"
-  node_os_upgrade_channel                   = "SecurityPatch"
-  local_account_disabled                    = true
+  automatic_upgrade_channel         = "patch"
+  node_os_upgrade_channel           = "SecurityPatch"
+  local_account_disabled            = true
   role_based_access_control_enabled = true
-  run_command_enabled                       = false
+  run_command_enabled               = false
 
   default_node_pool {
     name                        = "system"
