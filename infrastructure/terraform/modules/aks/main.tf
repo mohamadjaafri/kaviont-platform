@@ -1,3 +1,5 @@
+data "azurerm_client_config" "current" {}
+
 resource "azurerm_user_assigned_identity" "control_plane" {
   name                = "${var.cluster_name}-control-plane"
   location            = var.location
@@ -50,6 +52,7 @@ resource "azurerm_kubernetes_cluster" "this" {
   }
 
   azure_active_directory_role_based_access_control {
+    tenant_id          = data.azurerm_client_config.current.tenant_id
     azure_rbac_enabled = true
   }
 
