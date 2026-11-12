@@ -1,0 +1,7 @@
+Kaviont hello-api has been installed.
+
+Check rollout:
+  kubectl rollout status deployment/{{ include "hello-api.fullname" . }}
+
+Service:
+  {{ include "hello-api.fullname" . }}:{{ .Values.service.port }}

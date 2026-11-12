@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hello-api
+description: A small non-root sample API for the Kaviont platform blueprint
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

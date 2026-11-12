@@ -1,0 +1,74 @@
+name: Kaviont CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform format and validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive infrastructure/terraform
+
+      - name: Initialize without backend
+        working-directory: infrastructure/terraform/environments/dev
+        run: terraform init -backend=false -input=false
+
+      - name: Validate configuration
+        working-directory: infrastructure/terraform/environments/dev
+        run: terraform validate
+
+  application:
+    name: API tests and container build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: workloads/hello-api/requirements*.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r workloads/hello-api/requirements.txt -r workloads/hello-api/requirements-dev.txt
+
+      - name: Run tests
+        run: PYTHONPATH=workloads/hello-api python -m pytest workloads/hello-api/tests -q
+
+      - name: Build container image
+        run: docker build -t kaviont/hello-api:${{ github.sha }} workloads/hello-api
+
+  helm:
+    name: Helm chart validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint chart
+        run: helm lint charts/hello-api
+
+      - name: Render chart
+        run: helm template hello-api charts/hello-api >/dev/null

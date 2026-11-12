@@ -1,0 +1,18 @@
+# Set subscription_id = "<your-subscription-id>" or export ARM_SUBSCRIPTION_ID.
+subscription_id = null
+location       = "westeurope"
+environment    = "dev"
+name_prefix    = "kaviont"
+
+# Change this to 4-8 unique lowercase letters/numbers. ACR names are globally unique.
+unique_suffix = "a9x7"
+
+# Replace with your fixed public egress IP in CIDR notation before applying.
+# This documentation-only IP is not a real client address.
+api_server_authorized_ip_ranges = ["198.51.100.25/32"]
+
+# Review region-specific VM SKU availability and costs before deployment.
+system_pool_vm_size    = "Standard_D2s_v5"
+system_pool_node_count = 1
+system_pool_min_count  = 1
+system_pool_max_count  = 3
