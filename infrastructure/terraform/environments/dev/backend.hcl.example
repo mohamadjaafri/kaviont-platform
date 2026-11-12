@@ -1,0 +1,4 @@
+# Replace the suffix with the value used in the bootstrap and dev tfvars files.
+storage_account_name = "kavionttfstatea9x7"
+container_name       = "tfstate"
+key                  = "dev.terraform.tfstate"
