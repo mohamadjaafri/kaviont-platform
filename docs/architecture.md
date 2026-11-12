@@ -6,6 +6,8 @@ Kaviont provides a repeatable, minimal cloud platform foundation for a small sam
 
 ## Logical components
 
+- Terraform state foundation: a dedicated Azure Storage account provisioned by an isolated bootstrap root.
+- State backend: Azure Blob Storage with Entra ID data-plane authorization, blob versioning, soft delete, and native lease-based locking.
 - Resource group: lifecycle boundary for the development environment.
 - Virtual network: 10.40.0.0/16 address space.
 - AKS subnet: 10.40.0.0/20, used by the node pool.
@@ -13,9 +15,19 @@ Kaviont provides a repeatable, minimal cloud platform foundation for a small sam
 - Azure Container Registry: Basic tier, registry admin user disabled.
 - AKS: Azure CNI Overlay, Cilium network policy/data plane, Azure RBAC, local accounts disabled, OIDC issuer and Workload Identity enabled.
 - Control-plane identity: user-assigned managed identity with Network Contributor scoped to the AKS subnet.
-- Kubelet identity: managed by AKS, with AcrPull scoped to the project registry.
+- Kubelet: AKS-managed identity with AcrPull scoped to the project registry.
 - Azure Key Vault: RBAC authorization, soft delete, purge protection, and a dedicated vault for the sample workload.
 - hello-api identity: dedicated user-assigned managed identity, federated only to system:serviceaccount:demo:hello-api.
+
+## Terraform state lifecycle
+
+The bootstrap/state root creates the state resource group, storage account, and Storage Blob Data Contributor assignment for the identity running the bootstrap. It initially uses local state because the remote storage does not exist yet.
+
+The operator creates a private tfstate container using Azure CLI with Entra ID authentication. The bootstrap root's local state is then migrated to bootstrap.terraform.tfstate in that container. The development root uses a separate blob key, dev.terraform.tfstate.
+
+Both roots declare the azurerm backend with use_azuread_auth = true. Local commands set ARM_USE_CLI=true after an interactive az login. Automation can use ARM_USE_OIDC=true and a federated identity instead; this repository does not yet configure an automated apply workflow.
+
+Azure Blob Storage provides state locking and consistency checking. Blob versioning and soft delete provide recovery options for accidental state changes or deletion.
 
 ## Network allocation
 
@@ -43,6 +55,8 @@ All ranges are examples. Before deployment, verify they do not overlap with netw
 
 ## Trust boundaries
 
+- Terraform bootstrap operator: creates the state storage account and grants the state data-plane role to the current Entra principal.
+- Terraform state: dedicated storage account, private blob container, Entra ID data-plane authentication, no Shared Key access. Public network access remains enabled in this development profile.
 - Terraform execution identity: operator or CI identity with deployment permissions in the target subscription/resource group.
 - AKS control plane: user-assigned managed identity, scoped to the node subnet.
 - Kubelet: AKS-managed identity, scoped to read from ACR.
@@ -56,4 +70,6 @@ The first environment uses a small system node pool with autoscaling bounds. It 
 
 ## Cost controls
 
-AKS worker nodes, managed disks, load balancers, ACR storage, Key Vault operations, and network egress can incur charges. Keep the development environment small, review the Azure cost estimate before applying, and destroy the environment when it is not in use. Key Vault soft delete and purge protection mean a destroyed vault can remain recoverable and its name may not be immediately reusable. The Terraform configuration intentionally does not claim a fixed monthly cost because pricing depends on region, SKU, uptime, storage, and traffic.
+The state account uses Standard LRS and is expected to be low-cost, but pricing varies by region, storage, transactions, redundancy, and retention. AKS worker nodes, managed disks, load balancers, ACR storage, Key Vault operations, and network egress can incur additional charges. Keep the development environment small, review the Azure cost estimate before applying, and destroy development resources when unused.
+
+The state storage account is deliberately separate from the development resource group. Do not delete it as part of the normal development teardown. Key Vault soft delete and purge protection mean a destroyed vault can remain recoverable and its name may not be reusable immediately.
