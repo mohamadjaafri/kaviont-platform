@@ -4,6 +4,7 @@
 *.tfstate.*
 *.tfplan
 *.plan
+**/backend.hcl
 crash.log
 crash.*.log
 override.tf

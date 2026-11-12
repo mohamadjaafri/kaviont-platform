@@ -1,0 +1,4 @@
+# Replace the suffix with the value used in terraform.tfvars.
+storage_account_name = "kavionttfstatea9x7"
+container_name       = "tfstate"
+key                  = "bootstrap.terraform.tfstate"
