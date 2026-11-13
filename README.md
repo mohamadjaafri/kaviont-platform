@@ -25,6 +25,7 @@ Kaviont is an independent engineering reference project for building a repeatabl
 - Docker Compose development profile with source hot reload and containerized tests.
 - Single-node kind profile with a separate restricted local Argo CD Application.
 - Multi-stage container build with BuildKit dependency caching and distinct runtime/test targets.
+- Optional local OpenTelemetry pipeline with Collector, Prometheus, Tempo, and Grafana.
 - GitHub Actions checks for both Terraform roots, Helm, Python tests, container build, and GitOps manifests.
 
 ## Architecture
@@ -83,6 +84,18 @@ make local-down
 
 The kind cluster has one node. The application image is loaded directly into that node, never pushed to ACR. The local Argo CD Application and Azure Argo CD Application use separate projects, namespaces, and values files.
 
+## Local observability
+
+Start the optional telemetry stack:
+
+```bash
+make observability-up
+```
+
+Open Grafana at http://127.0.0.1:3000 (local default: admin / admin). The provisioned **Kaviont - Hello API** dashboard includes request rate, p95 latency, 5xx ratio, and a Tempo trace search panel. Prometheus is available at http://127.0.0.1:9090.
+
+Generate sample traffic with curl, then stop the telemetry containers with `make observability-down`. See [the observability runbook](docs/runbooks/observability-local.md) for details. This is a local learning profile, not production monitoring.
+
 ## Validate infrastructure and charts
 
 Terraform and Azure CLI are needed only for the Azure infrastructure workflow. From the repository root:
@@ -129,7 +142,7 @@ The Argo CD AppProject restricts the application to this repository, the in-clus
 
 The GitHub Actions workflow validates source code only. It does not authenticate to Azure, read remote state, or deploy resources. A production pipeline should use GitHub OIDC federation, protected environments, approval gates, and narrowly scoped state and deployment permissions.
 
-The project does not yet implement private AKS/Key Vault/state endpoints, policy-as-code enforcement, image signing, secret rotation, centralized observability, or production HA. These are roadmap items, not current capabilities.
+The project does not yet implement private AKS/Key Vault/state endpoints, policy-as-code enforcement, image signing, secret rotation, centralized production observability, or production HA. These are roadmap items, not current capabilities. A local-only observability profile is available for development and learning.
 
 AKS nodes, disks, load balancers, registry storage, Key Vault operations, state storage, Argo CD and network egress can incur charges while the environment exists. Review current regional pricing and destroy unused development resources.
 
@@ -137,7 +150,7 @@ AKS nodes, disks, load balancers, registry storage, Key Vault operations, state 
 
 - Private AKS API endpoint, private DNS, private ACR, Key Vault, and state connectivity.
 - Key Vault CSI integration for file-based secret consumers.
-- Managed Prometheus, Grafana dashboards, and OpenTelemetry.
+- AKS deployment of the OpenTelemetry Collector and managed observability backends.
 - GitHub Actions deployment through OIDC with environment protection.
 - Policy checks, image scanning, and container image signing.
 - Argo CD SSO, ingress TLS, HA, and production hardening.
