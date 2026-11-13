@@ -88,7 +88,7 @@ def main() -> int:
         require(automated.get("prune") is True, "Automated pruning must be enabled.")
         require(automated.get("selfHeal") is True, "Automated self-healing must be enabled.")
         require(automated.get("allowEmpty") is False, "Automated sync must not allow an empty target.")
-        require("CreateNamespace=true" in sync_policy.get("syncOptions", []), "Argo CD must create the demo namespace.")
+        require("CreateNamespace=true" not in sync_policy.get("syncOptions", []), "The demo namespace must be created outside the restricted AppProject.")
 
         require(kustomization.get("kind") == "Kustomization", "Kustomize manifest kind is incorrect.")
         require(
