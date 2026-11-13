@@ -4,7 +4,7 @@ Kaviont is an independent engineering reference project. Keep examples generic a
 
 ## Before opening a pull request
 
-Run the container-first checks that apply to your change:
+Run the checks that apply to your change:
 
 ```bash
 make fmt-check
@@ -12,10 +12,7 @@ make terraform-validate
 make app-test
 make helm-check
 make image-build
-make container-test
 ```
-
-For rapid API development, use `make dev-up` and `make dev-down`. Use `make local-up` when you need to test the chart and Argo CD reconciliation on Kubernetes. The local cluster is disposable and does not require Azure.
 
 ## Change expectations
 
