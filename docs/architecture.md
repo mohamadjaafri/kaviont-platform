@@ -18,6 +18,9 @@ Kaviont provides a repeatable, minimal cloud platform foundation for a small sam
 - Kubelet: AKS-managed identity with AcrPull scoped to the project registry.
 - Azure Key Vault: RBAC authorization, soft delete, purge protection, and a dedicated vault for the sample workload.
 - hello-api identity: dedicated user-assigned managed identity, federated only to system:serviceaccount:demo:hello-api.
+- Argo CD: upstream v3.6.1 non-HA installation in namespace argocd.
+- AppProject: allows only the Kaviont Git repository, in-cluster destination, demo namespace, and resource kinds used by hello-api.
+- Application: tracks main and renders the charts/hello-api chart using values-gitops.yaml.
 
 ## Terraform state lifecycle
 
@@ -28,6 +31,29 @@ The operator creates a private tfstate container using Azure CLI with Entra ID a
 Both roots declare the azurerm backend with use_azuread_auth = true. Local commands set ARM_USE_CLI=true after an interactive az login. Automation can use ARM_USE_OIDC=true and a federated identity instead; this repository does not yet configure an automated apply workflow.
 
 Azure Blob Storage provides state locking and consistency checking. Blob versioning and soft delete provide recovery options for accidental state changes or deletion.
+
+## Workload identity flow
+
+1. AKS publishes an OIDC issuer and enables the Workload Identity webhook.
+2. Terraform creates a user-assigned managed identity for hello-api.
+3. A federated identity credential trusts the AKS issuer, audience api://AzureADTokenExchange, and exact subject system:serviceaccount:demo:hello-api.
+4. The Helm chart annotates the Kubernetes service account with the identity client ID and labels the pod template with azure.workload.identity/use: true.
+5. The webhook projects a service-account token into the pod.
+6. Azure Identity's DefaultAzureCredential exchanges that token for a Microsoft Entra token.
+7. The identity uses its Key Vault Secrets User role to read the demo secret.
+8. The API returns only a Boolean status. It never exposes the secret value.
+
+## GitOps reconciliation
+
+Terraform owns Azure infrastructure: resource groups, network, AKS, ACR, Key Vault, managed identities, role assignments, and the remote state account.
+
+Argo CD owns only the hello-api workload resources in Kubernetes namespace demo. It watches this repository's main branch and renders charts/hello-api with the generated values-gitops.yaml file.
+
+The Application uses an AppProject that allows one Git source, one in-cluster destination, and the namespaced resource kinds required by the chart. Cluster-scoped resources are not allowed. The bootstrap operator creates the demo namespace before registering the Application. Namespace creation is deliberately excluded from Argo CD so the project's cluster-resource whitelist can remain empty. The Application has automated sync, prune, and self-heal enabled with a bounded retry policy.
+
+The environment values file is rendered from Terraform outputs by scripts/configure-gitops.py. It includes the ACR login server, managed identity client ID, Key Vault URI, image tag, and demo secret name. Those values identify infrastructure and are not secret material. Key Vault secret values remain in Key Vault.
+
+The bootstrap script installs the pinned upstream Argo CD release and applies the AppProject and Application manifests using Kustomize. The controller then reconciles the demo namespace. Workload changes are made through reviewed Git commits; do not use a second Helm release to manage the same resources.
 
 ## Network allocation
 
@@ -42,22 +68,12 @@ Azure Blob Storage provides state locking and consistency checking. Blob version
 
 All ranges are examples. Before deployment, verify they do not overlap with networks connected to your Azure environment.
 
-## Workload identity flow
-
-1. AKS publishes an OIDC issuer and enables the Workload Identity webhook.
-2. Terraform creates a user-assigned managed identity for hello-api.
-3. A federated identity credential trusts the AKS issuer, audience api://AzureADTokenExchange, and exact subject system:serviceaccount:demo:hello-api.
-4. The Helm chart annotates the Kubernetes service account with the identity client ID and labels the pod template with azure.workload.identity/use: true.
-5. The webhook projects a service-account token into the pod.
-6. Azure Identity's DefaultAzureCredential exchanges that token for a Microsoft Entra token.
-7. The identity uses its Key Vault Secrets User role to read the demo secret.
-8. The API returns only a Boolean status. It never exposes the secret value.
-
 ## Trust boundaries
 
 - Terraform bootstrap operator: creates the state storage account and grants the state data-plane role to the current Entra principal.
 - Terraform state: dedicated storage account, private blob container, Entra ID data-plane authentication, no Shared Key access. Public network access remains enabled in this development profile.
 - Terraform execution identity: operator or CI identity with deployment permissions in the target subscription/resource group.
+- Argo CD controller: reconciles one Git source into namespace demo with a narrow namespace-resource allowlist. It does not manage Azure infrastructure or Terraform state.
 - AKS control plane: user-assigned managed identity, scoped to the node subnet.
 - Kubelet: AKS-managed identity, scoped to read from ACR.
 - hello-api: dedicated user-assigned identity with federated trust to one service account and read-only Key Vault role.
@@ -66,10 +82,10 @@ All ranges are examples. Before deployment, verify they do not overlap with netw
 
 ## Availability and operations
 
-The first environment uses a small system node pool with autoscaling bounds. It is a learning and validation environment, not an HA production topology. A production implementation would define separate system and user pools, zones supported by the chosen VM SKU, private control-plane access, maintenance windows, backup/restore objectives, and capacity testing.
+The first environment uses a small system node pool with autoscaling bounds. It is a learning and validation environment, not an HA production topology. Argo CD is also installed in a non-HA profile to keep the example small. A production implementation would define separate system and user pools, zones supported by the chosen VM SKU, private control-plane access, Argo CD HA and SSO, maintenance windows, backup/restore objectives, and capacity testing.
 
 ## Cost controls
 
-The state account uses Standard LRS and is expected to be low-cost, but pricing varies by region, storage, transactions, redundancy, and retention. AKS worker nodes, managed disks, load balancers, ACR storage, Key Vault operations, and network egress can incur additional charges. Keep the development environment small, review the Azure cost estimate before applying, and destroy development resources when unused.
+The state account uses Standard LRS and is expected to be low-cost, but pricing varies by region, storage, transactions, redundancy, and retention. AKS worker nodes, managed disks, load balancers, ACR storage, Key Vault operations, Argo CD, and network egress can incur additional charges. Keep the development environment small, review the Azure cost estimate before applying, and destroy development resources when unused.
 
 The state storage account is deliberately separate from the development resource group. Do not delete it as part of the normal development teardown. Key Vault soft delete and purge protection mean a destroyed vault can remain recoverable and its name may not be reusable immediately.

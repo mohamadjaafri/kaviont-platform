@@ -23,12 +23,19 @@
 - The sample container runs as a non-root user with a read-only root filesystem.
 - Helm defines CPU/memory requests and limits, health probes, and a namespace-scoped ingress policy.
 - The secret-status API reports presence only. It never returns or logs secret values.
+- The Argo CD AppProject allows only the Kaviont Git repository, in-cluster destination, demo namespace, and six namespace-scoped resource kinds.
+- The Argo CD Application manages only the hello-api chart with automated reconciliation, pruning, and self-healing.
+- Environment-specific GitOps values are generated from Terraform outputs and contain no secret material.
 
 ## Important boundaries
 
 The state account and development Key Vault use public endpoints in this development profile. Authentication and data-plane access still require Microsoft Entra ID and the appropriate RBAC role. Private endpoints, private DNS, and network isolation are not included yet.
 
-The GitHub Actions workflow currently validates source code only. It does not authenticate to Azure, read remote state, or deploy resources. A production pipeline should use GitHub OIDC federation, protected environments, approval gates, and a dedicated identity with container-scoped state access and narrowly scoped deployment permissions.
+The GitHub Actions workflow validates source code only. It does not authenticate to Azure, read remote state, or deploy resources. A production pipeline should use GitHub OIDC federation, protected environments, approval gates, and a dedicated identity with container-scoped state access and narrowly scoped deployment permissions.
+
+The Argo CD bootstrap installs upstream v3.6.1 using the non-HA manifest. The UI is accessed through port-forwarding and the built-in admin account is enabled initially. Change its initial password immediately. SSO, managed ingress with valid TLS, HA, custom network policies for Argo CD components, and production hardening are not included.
+
+The AppProject intentionally does not allow cluster-scoped resources or arbitrary source repositories. Automated pruning means a resource removed from the chart can be deleted from the demo namespace. Keep the resource allowlist narrow and review chart changes before merging.
 
 The development profile does not provide a private AKS API endpoint, private ACR endpoint, secret rotation, policy-as-code enforcement, image signing, centralized observability, or production HA. Those are roadmap items, not current capabilities.
 
@@ -44,4 +51,4 @@ Key Vault purge protection cannot be disabled after activation. A destroyed vaul
 
 ## Cost
 
-The state account uses Standard LRS and stores a small number of state blobs. Storage transactions, versions, and retained deleted blobs can still incur charges. AKS nodes and attached disks run continuously until the development environment is destroyed. ACR storage, load balancers, egress, Key Vault operations, and monitoring add further cost. Use a small development profile and destroy unused resources. Check current Azure pricing for your region and VM SKU before provisioning.
+The state account uses Standard LRS and stores a small number of state blobs. Storage transactions, versions, and retained deleted blobs can still incur charges. AKS nodes and attached disks run continuously until the development environment is destroyed. ACR storage, load balancers, egress, Key Vault operations, Argo CD, and monitoring add further cost. Use a small development profile and destroy unused resources. Check current Azure pricing for your region and VM SKU before provisioning.
