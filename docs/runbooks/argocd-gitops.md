@@ -94,11 +94,11 @@ bash scripts/bootstrap-argocd.sh
 
 The script installs the upstream Argo CD v3.6.1 non-HA manifest, waits for the Application CRDs and API server, then applies the restricted Kaviont AppProject and hello-api Application.
 
-The app project allows:
+The bootstrap script creates the demo namespace as a prerequisite. The restricted AppProject then allows:
 - One source repository: this Kaviont GitHub repository.
 - One destination: the in-cluster demo namespace.
 - Only the namespace-scoped resource kinds rendered by the hello-api Helm chart.
-- No cluster-scoped resources.
+- No cluster-scoped resources. Namespace creation stays outside the Application so the project can deny all cluster-scoped resource kinds.
 
 ## 5. Access the Argo CD UI
 
