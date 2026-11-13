@@ -15,7 +15,7 @@ Install upstream Argo CD v3.6.1 using the version-pinned non-HA installation man
 
 Create a dedicated AppProject named kaviont-dev. It allows only the Kaviont public Git repository, the in-cluster Kubernetes API, the demo namespace, and the resource kinds rendered by the hello-api chart. It does not allow cluster-scoped resources.
 
-Create a hello-api Application that tracks the main branch and renders the charts/hello-api Helm chart using values-gitops.yaml. Enable automated synchronization, pruning, self-healing, namespace creation, and bounded retry with backoff.
+Create a hello-api Application that tracks the main branch and renders the charts/hello-api Helm chart using values-gitops.yaml. Enable automated synchronization, pruning, self-healing, and bounded retry with backoff. The bootstrap operator creates namespace demo before registering the Application, so the AppProject can deny all cluster-scoped resource kinds.
 
 Keep infrastructure management in Terraform. Argo CD owns only the hello-api namespace resources. Do not use a parallel Helm release or imperative kubectl changes to manage the same resources.
 
