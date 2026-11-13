@@ -40,6 +40,10 @@ kubectl apply --server-side --force-conflicts -n argocd -f "${ARGOCD_MANIFEST_UR
 kubectl wait --for=condition=Established --timeout=180s   crd/applications.argoproj.io crd/appprojects.argoproj.io
 kubectl rollout status deployment/argocd-server -n argocd --timeout=300s
 
+# The demo namespace is pre-created by the bootstrap operator. Keeping it outside
+# the Application lets the AppProject deny every cluster-scoped resource kind.
+kubectl create namespace demo --dry-run=client -o yaml | kubectl apply -f -
+
 echo "Registering the restricted Kaviont AppProject and hello-api Application."
 kubectl apply -k "${REPO_ROOT}/gitops/argocd"
 
