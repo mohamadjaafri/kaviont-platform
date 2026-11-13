@@ -38,6 +38,8 @@ spec:
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
           env:
+            - name: KAVIONT_ENV
+              value: {{ .Values.environment | default "production" | quote }}
             - name: KEY_VAULT_URL
               value: {{ .Values.workloadIdentity.keyVaultUrl | quote }}
             - name: KEY_VAULT_SECRET_NAME

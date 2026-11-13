@@ -1,3 +1,5 @@
+import importlib
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -28,6 +30,30 @@ def test_readiness_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ready"}
+
+
+def test_api_docs_are_enabled_in_local_environment(monkeypatch) -> None:
+    monkeypatch.setenv("KAVIONT_ENV", "local")
+    import app.main as main_module
+
+    main_module = importlib.reload(main_module)
+    local_client = TestClient(main_module.app)
+
+    assert local_client.get("/docs").status_code == 200
+    assert local_client.get("/redoc").status_code == 200
+    assert local_client.get("/openapi.json").status_code == 200
+
+
+def test_api_docs_are_disabled_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("KAVIONT_ENV", raising=False)
+    import app.main as main_module
+
+    main_module = importlib.reload(main_module)
+    production_client = TestClient(main_module.app)
+
+    assert production_client.get("/docs").status_code == 404
+    assert production_client.get("/redoc").status_code == 404
+    assert production_client.get("/openapi.json").status_code == 404
 
 
 def test_secret_status_uses_local_mode_without_vault(monkeypatch) -> None:

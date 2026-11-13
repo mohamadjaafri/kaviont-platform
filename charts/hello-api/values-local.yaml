@@ -1,4 +1,5 @@
 # Local-only profile. The demo secret is created in the kind cluster by local-up.sh.
+environment: local
 replicaCount: 1
 
 image:
