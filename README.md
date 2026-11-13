@@ -21,7 +21,10 @@ Kaviont is an independent engineering reference project for building a repeatabl
 - Dedicated workload managed identity with a federated credential bound to one Kubernetes service account.
 - FastAPI sample workload using Azure Identity and Key Vault SDK without exposing secret values.
 - Helm deployment with service account annotations, workload identity pod labels, health probes, resource limits, autoscaling, PodDisruptionBudget, and NetworkPolicy.
-- Argo CD Application and restricted AppProject for Git-based reconciliation of the demo workload.
+- Argo CD Application and restricted AppProject for Git-based reconciliation of the Azure workload.
+- Docker Compose development profile with source hot reload and containerized tests.
+- Single-node kind profile with a separate restricted local Argo CD Application.
+- Multi-stage container build with BuildKit dependency caching and distinct runtime/test targets.
 - GitHub Actions checks for both Terraform roots, Helm, Python tests, container build, and GitOps manifests.
 
 ## Architecture
@@ -32,7 +35,9 @@ A dedicated bootstrap root provisions an Azure Storage account for Terraform sta
 
 The development Terraform root provisions the Azure resource group, virtual network, AKS, ACR, Key Vault, a dedicated hello-api managed identity, a federated identity credential, and a scoped Key Vault Secrets User assignment.
 
-Argo CD runs inside AKS and watches the main branch of this repository. Its restricted AppProject permits only the Kaviont repository, the in-cluster demo namespace, and the resource kinds required by the hello-api Helm chart. The Application renders the chart with a generated, non-secret values file and reconciles the desired state through automated sync, pruning, and self-healing.
+Argo CD runs inside AKS and watches the main branch of this repository for the Azure demo workload. A separate optional local profile uses kind and its own restricted Argo CD project in namespace kaviont-local. The local Application uses a preloaded Docker image and local Helm values; it does not use ACR, Workload Identity, or Key Vault.
+
+Docker Compose provides the faster application loop: it mounts the API source read-only and runs Uvicorn with reload. The test target runs pytest inside a container. BuildKit caches dependency installation independently from source changes.
 
 The Kubernetes service account in namespace demo is trusted by the federated identity credential. The workload identity webhook injects the projected token into the labelled pod. Azure Identity exchanges that token for a Microsoft Entra token. The API reads a demo secret from Key Vault and reports only whether it exists.
 
@@ -42,8 +47,10 @@ Detailed design: docs/architecture.md, ADR 0001-0004, docs/security-and-cost.md,
 
 - .github: CI and dependency updates
 - charts/hello-api: Helm chart and GitOps values template
-- gitops/argocd: AppProject, Application, and Kustomize entry point
-- scripts: Terraform output renderer, Argo CD bootstrap, and GitOps validator
+- gitops/argocd: Azure and local AppProjects, Applications, and Kustomize entry points
+- kind: single-node local Kubernetes cluster configuration
+- compose.yaml: containerized API development and test profiles
+- scripts: Terraform output renderer, Argo CD bootstrap, local cluster lifecycle, and GitOps validator
 - infrastructure/terraform/bootstrap/state: remote state foundation
 - infrastructure/terraform/environments/dev: development platform
 - infrastructure/terraform/modules: reusable Terraform modules
@@ -51,11 +58,34 @@ Detailed design: docs/architecture.md, ADR 0001-0004, docs/security-and-cost.md,
 - workloads/hello-api: FastAPI service, tests, and Dockerfile
 - Makefile: local validation commands
 
-## Validate locally
+## Local-first development
 
-Prerequisites: Terraform 1.11.x, Azure CLI, Helm, Docker, and Python 3.12.
+The fastest loop uses Docker Compose. You need Docker Engine and Docker Compose v2, but no host Python installation and no Azure subscription.
 
-From the repository root:
+```bash
+make dev-up
+make container-test
+make dev-logs
+make dev-down
+```
+
+The API listens on http://127.0.0.1:8080 and reloads when you change Python source. The test runner is a separate container target. Dependencies are cached by BuildKit.
+
+For Kubernetes and GitOps integration, install kind, kubectl, and OpenSSL, then follow [the local development runbook](docs/runbooks/local-development.md):
+
+```bash
+make local-up
+make local-status
+make local-forward
+make local-build
+make local-down
+```
+
+The kind cluster has one node. The application image is loaded directly into that node, never pushed to ACR. The local Argo CD Application and Azure Argo CD Application use separate projects, namespaces, and values files.
+
+## Validate infrastructure and charts
+
+Terraform and Azure CLI are needed only for the Azure infrastructure workflow. From the repository root:
 
 - make fmt-check
 - make terraform-bootstrap-validate
@@ -65,7 +95,7 @@ From the repository root:
 - make gitops-check
 - make image-build
 
-These commands validate source and build a local image. They do not provision Azure resources or install Argo CD.
+These commands validate source and build a local image. They do not provision Azure resources. See docs/runbooks/local-development.md for the complete container-first local workflow.
 
 ## Provision the development environment
 

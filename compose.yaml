@@ -1,0 +1,63 @@
+name: kaviont
+
+services:
+  hello-api:
+    profiles: ["dev"]
+    image: kaviont/hello-api:local
+    build:
+      context: ./workloads/hello-api
+      dockerfile: Dockerfile
+      target: runtime
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --reload
+    environment:
+      KEY_VAULT_URL: ""
+      KEY_VAULT_SECRET_NAME: platform-demo-token
+      LOCAL_DEMO_SECRET: ${LOCAL_DEMO_SECRET:-}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - type: bind
+        source: ./workloads/hello-api/app
+        target: /app/app
+        read_only: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=2)"
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  hello-api-test:
+    profiles: ["test"]
+    image: kaviont/hello-api:test
+    build:
+      context: ./workloads/hello-api
+      dockerfile: Dockerfile
+      target: test
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

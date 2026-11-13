@@ -42,6 +42,13 @@ spec:
               value: {{ .Values.workloadIdentity.keyVaultUrl | quote }}
             - name: KEY_VAULT_SECRET_NAME
               value: {{ .Values.workloadIdentity.secretName | quote }}
+            {{- if .Values.localSecret.enabled }}
+            - name: LOCAL_DEMO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "localSecret.secretName is required when localSecret.enabled is true" .Values.localSecret.secretName | quote }}
+                  key: {{ .Values.localSecret.secretKey | quote }}
+            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

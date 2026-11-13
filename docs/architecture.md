@@ -4,6 +4,18 @@
 
 Kaviont provides a repeatable, minimal cloud platform foundation for a small sample workload. The goal is to demonstrate infrastructure design and operational controls rather than to represent a production deployment for a real organization.
 
+## Local-first execution model
+
+Kaviont separates fast application iteration from Kubernetes integration testing:
+
+- Docker Compose runs the API with source bind mounts and Uvicorn reload. A separate image target runs pytest, so development and tests do not require Python on the host.
+- BuildKit cache mounts keep Python dependency installation out of the hot code-change path.
+- kind runs a single-node Kubernetes cluster inside Docker. The local image is imported into the node and is never pushed to a registry.
+- A separate, restricted Argo CD AppProject deploys the local Helm values into namespace kaviont-local. It cannot manage the Azure namespace or cluster-scoped resources.
+- The Azure environment remains an explicit, separate profile using AKS, ACR, Workload Identity, and Key Vault.
+
+Compose is the default rapid feedback loop. Start kind only when validating Kubernetes deployment and GitOps behavior. The local profile is a practical development environment, not an emulation of Azure services.
+
 ## Logical components
 
 - Terraform state foundation: a dedicated Azure Storage account provisioned by an isolated bootstrap root.
@@ -31,6 +43,15 @@ The operator creates a private tfstate container using Azure CLI with Entra ID a
 Both roots declare the azurerm backend with use_azuread_auth = true. Local commands set ARM_USE_CLI=true after an interactive az login. Automation can use ARM_USE_OIDC=true and a federated identity instead; this repository does not yet configure an automated apply workflow.
 
 Azure Blob Storage provides state locking and consistency checking. Blob versioning and soft delete provide recovery options for accidental state changes or deletion.
+
+## Container build model
+
+The hello-api Dockerfile has a shared dependency stage and two targets:
+
+- `runtime`: production-like, non-root API image without pytest.
+- `test`: extends runtime with test-only dependencies and the test suite.
+
+BuildKit caches pip downloads separately from the source layer. Compose mounts the application source read-only for hot reload. The kind workflow builds the runtime target once, loads the local image directly into the node, and uses `imagePullPolicy: Never` so it cannot silently pull from a registry.
 
 ## Workload identity flow
 

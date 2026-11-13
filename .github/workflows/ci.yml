@@ -49,21 +49,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: workloads/hello-api/requirements*.txt
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Install dependencies
-        run: python -m pip install -r workloads/hello-api/requirements.txt -r workloads/hello-api/requirements-dev.txt
+      - name: Validate Compose profiles
+        run: docker compose --profile dev --profile test config --quiet
 
-      - name: Run tests
-        run: PYTHONPATH=workloads/hello-api python -m pytest workloads/hello-api/tests -q
+      - name: Build and run tests inside the test image
+        run: |
+          docker buildx build --load --target test \
+            --tag kaviont/hello-api:test \
+            workloads/hello-api
+          docker run --rm kaviont/hello-api:test
 
-      - name: Build container image
-        run: docker build -t kaviont/hello-api:${{ github.sha }} workloads/hello-api
+      - name: Build the runtime image
+        run: |
+          docker buildx build --load --target runtime \
+            --tag kaviont/hello-api:${{ github.sha }} \
+            workloads/hello-api
 
   helm:
     name: Helm chart validation
@@ -111,10 +114,22 @@ jobs:
       - name: Lint hello-api using GitOps values template
         run: helm lint charts/hello-api --values charts/hello-api/values-gitops.yaml.example
 
-      - name: Render GitOps workload
+      - name: Render Azure GitOps workload
         run: |
           helm template hello-api charts/hello-api --namespace demo \
             --values charts/hello-api/values-gitops.yaml.example >/tmp/kaviont-gitops.yaml
           grep -q 'azure.workload.identity/use: "true"' /tmp/kaviont-gitops.yaml
           grep -q 'azure.workload.identity/client-id:' /tmp/kaviont-gitops.yaml
           grep -q 'REPLACE_WITH_ACR_LOGIN_SERVER/hello-api:0.2.0' /tmp/kaviont-gitops.yaml
+
+      - name: Lint and render local profile
+        run: |
+          helm lint charts/hello-api --values charts/hello-api/values-local.yaml
+          helm template hello-api-local charts/hello-api --namespace kaviont-local \
+            --values charts/hello-api/values-local.yaml >/tmp/kaviont-local.yaml
+          grep -q 'imagePullPolicy: Never' /tmp/kaviont-local.yaml
+          grep -q 'name: LOCAL_DEMO_SECRET' /tmp/kaviont-local.yaml
+          if grep -q 'azure.workload.identity/use' /tmp/kaviont-local.yaml; then
+            echo "Local profile must not enable Azure Workload Identity." >&2
+            exit 1
+          fi
