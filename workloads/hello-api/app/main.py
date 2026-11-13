@@ -4,11 +4,15 @@ from fastapi import FastAPI, HTTPException
 
 from app.secrets import secret_is_configured
 
+environment = os.getenv("KAVIONT_ENV", "production").strip().lower()
+enable_api_docs = environment in {"local", "test"}
+
 app = FastAPI(
     title="Kaviont Hello API",
     version="0.2.0",
-    docs_url=None,
-    redoc_url=None,
+    docs_url="/docs" if enable_api_docs else None,
+    redoc_url="/redoc" if enable_api_docs else None,
+    openapi_url="/openapi.json" if enable_api_docs else None,
 )
 
 
