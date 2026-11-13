@@ -3,7 +3,7 @@ TF_DIR := infrastructure/terraform/environments/dev
 APP_DIR := workloads/hello-api
 CHART_DIR := charts/hello-api
 
-.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down
+.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-down observability-logs
 
 fmt:
 	terraform fmt -recursive infrastructure/terraform
@@ -67,3 +67,13 @@ local-forward:
 
 local-down:
 	bash scripts/local-down.sh
+
+# Optional local telemetry stack. Does not affect the default dev profile.
+observability-up:
+	OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 docker compose --profile observability up --build -d
+
+observability-down:
+	docker compose --profile observability down --remove-orphans
+
+observability-logs:
+	docker compose --profile observability logs -f

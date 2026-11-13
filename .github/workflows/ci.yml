@@ -53,7 +53,9 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Validate Compose profiles
-        run: docker compose --profile dev --profile test config --quiet
+        run: |
+          docker compose --profile dev --profile test config --quiet
+          docker compose --profile observability config --quiet
 
       - name: Build and run tests inside the test image
         run: |
@@ -110,6 +112,9 @@ jobs:
 
       - name: Validate Argo CD project, application, and values contract
         run: python scripts/validate_gitops.py
+
+      - name: Validate observability configuration
+        run: python scripts/validate_observability.py
 
       - name: Lint hello-api using GitOps values template
         run: helm lint charts/hello-api --values charts/hello-api/values-gitops.yaml.example

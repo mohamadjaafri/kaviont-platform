@@ -16,6 +16,10 @@ Kaviont separates fast application iteration from Kubernetes integration testing
 
 Compose is the default rapid feedback loop. Start kind only when validating Kubernetes deployment and GitOps behavior. The local profile is a practical development environment, not an emulation of Azure services.
 
+## Local observability
+
+An optional Docker Compose profile instruments hello-api with OpenTelemetry and exports OTLP metrics and traces to a local Collector. The Collector exposes Prometheus metrics and forwards traces to Tempo. Prometheus scrapes the Collector, while Grafana provisions Prometheus and Tempo as data sources and loads the hello-api dashboard. The telemetry stack is opt-in and is not part of the default developer loop.
+
 ## Logical components
 
 - Terraform state foundation: a dedicated Azure Storage account provisioned by an isolated bootstrap root.

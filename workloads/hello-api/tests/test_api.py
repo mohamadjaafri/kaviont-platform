@@ -14,7 +14,7 @@ def test_root_returns_service_metadata() -> None:
     assert response.json() == {
         "service": "hello-api",
         "status": "running",
-        "version": "0.2.0",
+        "version": "0.5.0",
     }
 
 
