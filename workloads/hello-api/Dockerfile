@@ -33,4 +33,4 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
 COPY --chown=10001:10001 tests ./tests
 
 USER 10001:10001
-CMD ["python", "-m", "pytest", "tests", "-q"]
+CMD ["python", "-m", "pytest", "-p", "no:cacheprovider", "tests", "-q"]
