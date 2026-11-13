@@ -32,6 +32,8 @@ gitops-check:
 	python scripts/validate_gitops.py
 	helm lint $(CHART_DIR) --values $(CHART_DIR)/values-gitops.yaml.example
 	helm template hello-api $(CHART_DIR) --namespace demo --values $(CHART_DIR)/values-gitops.yaml.example >/dev/null
+	helm lint $(CHART_DIR) --values $(CHART_DIR)/values-local.yaml
+	helm template hello-api-local $(CHART_DIR) --namespace kaviont-local --values $(CHART_DIR)/values-local.yaml >/dev/null
 
 image-build:
 	docker build -t kaviont/hello-api:dev $(APP_DIR)
