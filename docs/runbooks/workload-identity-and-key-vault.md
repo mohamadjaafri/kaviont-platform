@@ -1,71 +1,60 @@
 # Runbook: configure hello-api Workload Identity and Key Vault
 
-This runbook assumes the Terraform environment has been provisioned and kubectl is connected to the resulting AKS cluster.
+This runbook is the short entry point for enabling the sample API's Azure identity and secret integration. Deployment is managed by Argo CD, not a parallel Helm release. Complete docs/runbooks/argocd-gitops.md for the full GitOps workflow.
 
 ## 1. Read the Terraform outputs
 
-From the repository root, enter the dev environment and read these outputs into shell variables:
+From the repository root, read the values from the dev environment:
 
-- RESOURCE_GROUP from terraform output -raw resource_group_name
-- AKS_NAME from terraform output -raw aks_cluster_name
-- ACR_NAME from terraform output -raw acr_name
-- ACR_LOGIN_SERVER from terraform output -raw acr_login_server
-- KEY_VAULT_NAME from terraform output -raw key_vault_name
-- KEY_VAULT_URI from terraform output -raw key_vault_uri
-- HELLO_API_CLIENT_ID from terraform output -raw hello_api_identity_client_id
-- AZURE_TENANT_ID from terraform output -raw azure_tenant_id
+- ACR name: `terraform -chdir=infrastructure/terraform/environments/dev output -raw acr_name`
+- ACR login server: `terraform -chdir=infrastructure/terraform/environments/dev output -raw acr_login_server`
+- Key Vault name: `terraform -chdir=infrastructure/terraform/environments/dev output -raw key_vault_name`
+- Key Vault URI: `terraform -chdir=infrastructure/terraform/environments/dev output -raw key_vault_uri`
+- hello-api managed identity client ID: `terraform -chdir=infrastructure/terraform/environments/dev output -raw hello_api_identity_client_id`
 
-Return to the repository root after reading the outputs.
+## 2. Create a demo secret
 
-## 2. Connect to AKS and create a demo secret
+The operator or an administrator must have Key Vault Secrets Officer on the dedicated development vault.
 
-Run az aks get-credentials with the resource group and AKS name, then confirm that kubectl get nodes succeeds.
+Create a random non-production value. Azure CLI returns only the secret resource ID:
 
-Create a demo secret using Azure CLI:
+```bash
+KEY_VAULT_NAME="$(terraform -chdir=infrastructure/terraform/environments/dev output -raw key_vault_name)"
+az keyvault secret set \
+  --vault-name "$KEY_VAULT_NAME" \
+  --name "platform-demo-token" \
+  --value "$(openssl rand -hex 32)" \
+  --query id --output tsv
+```
 
-az keyvault secret set --vault-name "$KEY_VAULT_NAME" --name "platform-demo-token" --value "$(openssl rand -hex 32)" --query id --output tsv
+Do not use a real credential. The hello-api identity receives read-only Key Vault Secrets User permission and the API never returns the secret value.
 
-The command prints only the secret resource ID, not the secret value. The Terraform execution identity needs permission to create secrets in this vault (for example, Key Vault Secrets Officer) or an administrator must create the demo secret.
+## 3. Build and push the container image
 
-## 3. Build and push the sample API
+Follow step 2 in docs/runbooks/argocd-gitops.md to build and push version 0.2.0 to the project ACR. The AKS kubelet identity already has AcrPull on that registry.
 
-Build workloads/hello-api with Docker and tag it as $ACR_LOGIN_SERVER/hello-api:0.2.0. Authenticate with az acr login --name "$ACR_NAME", then push the image.
+## 4. Configure the workload identity values
 
-## 4. Deploy with federated workload identity
+Run `python scripts/configure-gitops.py` from the repository root. The helper reads the ACR login server, managed identity client ID, and Key Vault URI from Terraform outputs and generates charts/hello-api/values-gitops.yaml.
 
-Install or upgrade the hello-api chart into namespace demo with these Helm values:
+Commit that generated, non-secret configuration to the main branch through a pull request. Do not place secret values, client secrets, passwords, or tokens in this file.
 
-- workloadIdentity.enabled=true
-- workloadIdentity.clientId=$HELLO_API_CLIENT_ID
-- workloadIdentity.keyVaultUrl=$KEY_VAULT_URI
-- workloadIdentity.secretName=platform-demo-token
-- image.repository=$ACR_LOGIN_SERVER/hello-api
-- image.tag=0.2.0
+## 5. Deploy and verify
 
-Wait for kubectl rollout status deployment/hello-api -n demo.
+Follow docs/runbooks/argocd-gitops.md to install the pinned Argo CD release, register the restricted AppProject and Application, and verify the rollout.
 
-Inspect the service account and pod labels. The service account annotation must contain the managed identity client ID. The pod template must contain azure.workload.identity/use: true. The federated credential trusts only system:serviceaccount:demo:hello-api.
+The expected endpoint response is:
 
-## 5. Verify without disclosing the secret
-
-Port-forward service hello-api in namespace demo from local port 8080 to service port 80. Request http://127.0.0.1:8080/v1/secret-status.
-
-Expected JSON response:
-
+```json
 {"mode":"azure-key-vault","secret_configured":true}
+```
 
-The endpoint returns only whether the named secret is present and non-empty. It never returns the secret value.
+## Troubleshooting
 
-## 6. Troubleshooting
-
-- 401 or token exchange failure: verify AKS OIDC issuer, the FIC issuer, audience, and exact subject.
-- 403 from Key Vault: verify the identity client ID on the service account and the Key Vault Secrets User role assignment. Allow time for role assignment propagation.
+- Token exchange failure: verify AKS OIDC issuer, federated identity issuer, audience, and exact subject system:serviceaccount:demo:hello-api.
+- Key Vault 403: verify the managed identity client ID annotation and Key Vault Secrets User role assignment. Allow time for role assignment propagation.
+- ImagePullBackOff: verify the ACR image tag exists and the AKS kubelet identity retains AcrPull.
 - Secret not found: verify the secret name and vault URI.
-- No injected Azure environment variables: confirm the pod label azure.workload.identity/use: true and recreate the pod after changing service-account annotations.
-- Network timeout: the development vault uses its public endpoint. Check DNS and outbound connectivity. Private endpoint routing is not included yet.
+- Network timeout: the development vault uses its public endpoint. Private endpoint routing is not included yet.
 
-## 7. Clean up the application
-
-Uninstall the hello-api Helm release and delete namespace demo before destroying the Terraform environment.
-
-Destroying the Terraform environment deletes the Key Vault resource, but soft delete and purge protection can retain it for recovery. The vault name may not be available for immediate reuse. Do not disable purge protection merely to simplify the demo teardown.
+Do not install a second Helm release for hello-api while Argo CD manages the Application. To clean up, delete the Argo CD Application first and then the demo namespace as described in the GitOps runbook.
