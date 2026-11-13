@@ -3,7 +3,7 @@ TF_DIR := infrastructure/terraform/environments/dev
 APP_DIR := workloads/hello-api
 CHART_DIR := charts/hello-api
 
-.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check image-build
+.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check image-build
 
 fmt:
 	terraform fmt -recursive infrastructure/terraform
@@ -26,6 +26,12 @@ app-test:
 helm-check:
 	helm lint $(CHART_DIR)
 	helm template hello-api $(CHART_DIR) >/dev/null
+
+gitops-check:
+	python -m pip install "PyYAML>=6,<7"
+	python scripts/validate_gitops.py
+	helm lint $(CHART_DIR) --values $(CHART_DIR)/values-gitops.yaml.example
+	helm template hello-api $(CHART_DIR) --namespace demo --values $(CHART_DIR)/values-gitops.yaml.example >/dev/null
 
 image-build:
 	docker build -t kaviont/hello-api:dev $(APP_DIR)
