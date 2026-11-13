@@ -18,6 +18,12 @@ workloadIdentity:
   keyVaultUrl: ""
   secretName: platform-demo-token
 
+# Optional local-only test fixture. The Secret must be created out of band.
+localSecret:
+  enabled: false
+  secretName: ""
+  secretKey: demo-secret
+
 service:
   type: ClusterIP
   port: 80
