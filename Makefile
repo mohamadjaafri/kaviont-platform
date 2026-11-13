@@ -70,7 +70,7 @@ local-down:
 
 # Optional local telemetry stack. Does not affect the default dev profile.
 observability-up:
-	docker compose --profile observability up --build -d
+	OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 docker compose --profile observability up --build -d
 
 observability-down:
 	docker compose --profile observability down --remove-orphans
