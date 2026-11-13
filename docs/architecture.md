@@ -49,7 +49,7 @@ Terraform owns Azure infrastructure: resource groups, network, AKS, ACR, Key Vau
 
 Argo CD owns only the hello-api workload resources in Kubernetes namespace demo. It watches this repository's main branch and renders charts/hello-api with the generated values-gitops.yaml file.
 
-The Application uses an AppProject that allows one Git source, one in-cluster destination, and the namespaced resource kinds required by the chart. Cluster-scoped resources are not allowed. The Application has automated sync, prune, and self-heal enabled with a bounded retry policy.
+The Application uses an AppProject that allows one Git source, one in-cluster destination, and the namespaced resource kinds required by the chart. Cluster-scoped resources are not allowed. The bootstrap operator creates the demo namespace before registering the Application. Namespace creation is deliberately excluded from Argo CD so the project's cluster-resource whitelist can remain empty. The Application has automated sync, prune, and self-heal enabled with a bounded retry policy.
 
 The environment values file is rendered from Terraform outputs by scripts/configure-gitops.py. It includes the ACR login server, managed identity client ID, Key Vault URI, image tag, and demo secret name. Those values identify infrastructure and are not secret material. Key Vault secret values remain in Key Vault.
 
