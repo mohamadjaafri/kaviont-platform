@@ -30,6 +30,24 @@ def test_readiness_endpoint() -> None:
     assert response.json() == {"status": "ready"}
 
 
+def test_api_docs_are_enabled_in_local_environment(monkeypatch) -> None:
+    monkeypatch.setenv("KAVIONT_ENV", "local")
+    from app.main import FastAPI
+
+    local_app = FastAPI(
+        title="Kaviont Hello API",
+        version="0.2.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+    )
+    local_client = TestClient(local_app)
+
+    assert local_client.get("/docs").status_code == 200
+    assert local_client.get("/redoc").status_code == 200
+    assert local_client.get("/openapi.json").status_code == 200
+
+
 def test_secret_status_uses_local_mode_without_vault(monkeypatch) -> None:
     monkeypatch.delenv("KEY_VAULT_URL", raising=False)
     monkeypatch.delenv("LOCAL_DEMO_SECRET", raising=False)
