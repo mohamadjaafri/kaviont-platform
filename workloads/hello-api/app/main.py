@@ -34,7 +34,10 @@ def secret_status() -> dict[str, bool | str]:
     secret_name = os.getenv("KEY_VAULT_SECRET_NAME", "platform-demo-token").strip()
 
     if not vault_url:
-        return {"mode": "local", "secret_configured": False}
+        # Local mode checks only whether the disposable test fixture is present.
+        # It never returns or logs the environment variable value.
+        local_secret = os.getenv("LOCAL_DEMO_SECRET", "")
+        return {"mode": "local", "secret_configured": bool(local_secret.strip())}
 
     try:
         configured = secret_is_configured(vault_url, secret_name)

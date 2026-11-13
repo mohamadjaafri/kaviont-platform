@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Kaviont Argo CD manifests and their Helm values contract."""
+"""Validate Kaviont's Azure and local Argo CD configurations."""
 
 from __future__ import annotations
 
@@ -10,8 +10,18 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 GITOPS_DIR = ROOT / "gitops" / "argocd"
+LOCAL_DIR = GITOPS_DIR / "local"
 CHART_DIR = ROOT / "charts" / "hello-api"
 REPO_URL = "https://github.com/mohamadjaafri/kaviont-platform.git"
+
+ALLOWED_RESOURCES = {
+    ("apps", "Deployment"),
+    ("", "Service"),
+    ("", "ServiceAccount"),
+    ("autoscaling", "HorizontalPodAutoscaler"),
+    ("policy", "PodDisruptionBudget"),
+    ("networking.k8s.io", "NetworkPolicy"),
+}
 
 
 def load_yaml(path: Path) -> dict:
@@ -29,91 +39,104 @@ def require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
+def validate_project(project: dict, name: str, namespace: str) -> None:
+    require(project.get("apiVersion") == "argoproj.io/v1alpha1", f"{name} AppProject apiVersion is incorrect.")
+    require(project.get("kind") == "AppProject", f"{name} must be an AppProject.")
+    spec = project.get("spec", {})
+    require(spec.get("sourceRepos") == [REPO_URL], f"{name} AppProject must allow only the Kaviont repository.")
+    require(
+        spec.get("destinations") == [{"server": "https://kubernetes.default.svc", "namespace": namespace}],
+        f"{name} AppProject must target only namespace {namespace}.",
+    )
+    require(spec.get("clusterResourceWhitelist") == [], f"{name} AppProject must deny cluster-scoped resources.")
+    configured = {
+        (item.get("group", ""), item.get("kind", ""))
+        for item in spec.get("namespaceResourceWhitelist", [])
+    }
+    require(configured == ALLOWED_RESOURCES, f"{name} AppProject resource allowlist does not match the workload chart.")
+
+
+def validate_application(application: dict, project_name: str, namespace: str, values_file: str) -> None:
+    require(application.get("apiVersion") == "argoproj.io/v1alpha1", "Application apiVersion is incorrect.")
+    require(application.get("kind") == "Application", "Expected an Application manifest.")
+    metadata = application.get("metadata", {})
+    spec = application.get("spec", {})
+    require(metadata.get("namespace") == "argocd", "Application must be created in the argocd namespace.")
+    require(spec.get("project") == project_name, f"Application must use project {project_name}.")
+
+    source = spec.get("source", {})
+    require(source.get("repoURL") == REPO_URL, "Application repository URL is incorrect.")
+    require(source.get("targetRevision") == "main", "Application must track the main branch.")
+    require(source.get("path") == "charts/hello-api", "Application must use the hello-api Helm chart.")
+    require(source.get("helm", {}).get("valueFiles") == [values_file], f"Application must load {values_file}.")
+
+    destination = spec.get("destination", {})
+    require(destination.get("server") == "https://kubernetes.default.svc", "Application destination must be the in-cluster API.")
+    require(destination.get("namespace") == namespace, f"Application destination must be namespace {namespace}.")
+
+    sync = spec.get("syncPolicy", {})
+    automated = sync.get("automated", {})
+    require(automated.get("enabled") is True, "Automated sync must be enabled.")
+    require(automated.get("prune") is True, "Automated pruning must be enabled.")
+    require(automated.get("selfHeal") is True, "Automated self-healing must be enabled.")
+    require(automated.get("allowEmpty") is False, "Automated sync must not allow an empty target.")
+    require("CreateNamespace=true" not in sync.get("syncOptions", []), "The namespace must be created outside the restricted AppProject.")
+
+
+def validate_kustomization(path: Path, expected_resources: set[str]) -> None:
+    config = load_yaml(path)
+    require(config.get("kind") == "Kustomization", f"{path.relative_to(ROOT)} kind is incorrect.")
+    require(set(config.get("resources", [])) == expected_resources, f"{path.relative_to(ROOT)} resources are unexpected.")
+    require(config.get("namespace") == "argocd", f"{path.relative_to(ROOT)} must target argocd.")
+
+
 def main() -> int:
     try:
-        project = load_yaml(GITOPS_DIR / "app-project.yaml")
-        application = load_yaml(GITOPS_DIR / "hello-api-application.yaml")
-        kustomization = load_yaml(GITOPS_DIR / "kustomization.yaml")
-        values = load_yaml(CHART_DIR / "values-gitops.yaml.example")
-
-        require(project.get("apiVersion") == "argoproj.io/v1alpha1", "AppProject apiVersion is incorrect.")
-        require(project.get("kind") == "AppProject", "Expected an AppProject manifest.")
-        project_spec = project.get("spec", {})
-        require(project_spec.get("sourceRepos") == [REPO_URL], "AppProject must allow only the Kaviont repository.")
-        require(
-            project_spec.get("destinations") == [
-                {"server": "https://kubernetes.default.svc", "namespace": "demo"}
-            ],
-            "AppProject must target only the in-cluster demo namespace.",
-        )
-        require(project_spec.get("clusterResourceWhitelist") == [], "AppProject must not allow cluster-scoped resources.")
-
-        allowed_resources = {
-            ("apps", "Deployment"),
-            ("", "Service"),
-            ("", "ServiceAccount"),
-            ("autoscaling", "HorizontalPodAutoscaler"),
-            ("policy", "PodDisruptionBudget"),
-            ("networking.k8s.io", "NetworkPolicy"),
-        }
-        configured_resources = {
-            (item.get("group", ""), item.get("kind", ""))
-            for item in project_spec.get("namespaceResourceWhitelist", [])
-        }
-        require(configured_resources == allowed_resources, "AppProject resource allowlist does not match the hello-api chart.")
-
-        require(application.get("apiVersion") == "argoproj.io/v1alpha1", "Application apiVersion is incorrect.")
-        require(application.get("kind") == "Application", "Expected an Application manifest.")
-        app_meta = application.get("metadata", {})
-        app_spec = application.get("spec", {})
-        require(app_meta.get("namespace") == "argocd", "Application must be created in the argocd namespace.")
-        require(app_spec.get("project") == "kaviont-dev", "Application must use the restricted Kaviont project.")
-
-        source = app_spec.get("source", {})
-        require(source.get("repoURL") == REPO_URL, "Application repository URL is incorrect.")
-        require(source.get("targetRevision") == "main", "Application must track the main branch.")
-        require(source.get("path") == "charts/hello-api", "Application must use the hello-api Helm chart.")
-        require(
-            source.get("helm", {}).get("valueFiles") == ["values-gitops.yaml"],
-            "Application must load the generated GitOps values file.",
+        # Azure/AKS profile.
+        azure_project = load_yaml(GITOPS_DIR / "app-project.yaml")
+        azure_application = load_yaml(GITOPS_DIR / "hello-api-application.yaml")
+        azure_values = load_yaml(CHART_DIR / "values-gitops.yaml.example")
+        validate_project(azure_project, "Azure", "demo")
+        validate_application(azure_application, "kaviont-dev", "demo", "values-gitops.yaml")
+        validate_kustomization(
+            GITOPS_DIR / "kustomization.yaml",
+            {"app-project.yaml", "hello-api-application.yaml"},
         )
 
-        destination = app_spec.get("destination", {})
-        require(destination.get("server") == "https://kubernetes.default.svc", "Application destination must be the in-cluster API.")
-        require(destination.get("namespace") == "demo", "Application destination must be the demo namespace.")
-
-        sync_policy = app_spec.get("syncPolicy", {})
-        automated = sync_policy.get("automated", {})
-        require(automated.get("enabled") is True, "Automated sync must be enabled.")
-        require(automated.get("prune") is True, "Automated pruning must be enabled.")
-        require(automated.get("selfHeal") is True, "Automated self-healing must be enabled.")
-        require(automated.get("allowEmpty") is False, "Automated sync must not allow an empty target.")
-        require("CreateNamespace=true" not in sync_policy.get("syncOptions", []), "The demo namespace must be created outside the restricted AppProject.")
-
-        require(kustomization.get("kind") == "Kustomization", "Kustomize manifest kind is incorrect.")
+        require(azure_values.get("workloadIdentity", {}).get("enabled") is True, "Azure GitOps values must enable Workload Identity.")
+        require(azure_values.get("image", {}).get("tag") == "0.2.0", "Azure GitOps values must pin the sample image tag.")
         require(
-            set(kustomization.get("resources", [])) == {"app-project.yaml", "hello-api-application.yaml"},
-            "Kustomize resources must include only the project and hello-api application.",
+            str(azure_values.get("image", {}).get("repository", "")).startswith("REPLACE_WITH_ACR_LOGIN_SERVER/"),
+            "Azure GitOps values template must use the ACR output marker.",
         )
-        require(kustomization.get("namespace") == "argocd", "Kustomize must target the argocd namespace.")
+        template_text = (CHART_DIR / "values-gitops.yaml.example").read_text(encoding="utf-8")
+        for marker in ("REPLACE_WITH_HELLO_API_CLIENT_ID", "REPLACE_WITH_KEY_VAULT_URI"):
+            require(marker in template_text, f"Missing Azure values template marker: {marker}")
 
-        require(values.get("workloadIdentity", {}).get("enabled") is True, "GitOps values must enable Workload Identity.")
-        require(values.get("image", {}).get("tag") == "0.2.0", "GitOps values must pin the sample image tag.")
-        require(
-            str(values.get("image", {}).get("repository", "")).startswith("REPLACE_WITH_ACR_LOGIN_SERVER/"),
-            "GitOps values template must use the ACR output marker.",
+        # Local profile. Its project, namespace, and values are intentionally distinct.
+        local_project = load_yaml(LOCAL_DIR / "app-project.yaml")
+        local_application = load_yaml(LOCAL_DIR / "hello-api-application.yaml")
+        local_values = load_yaml(CHART_DIR / "values-local.yaml")
+        validate_project(local_project, "Local", "kaviont-local")
+        validate_application(local_application, "kaviont-local", "kaviont-local", "values-local.yaml")
+        validate_kustomization(
+            LOCAL_DIR / "kustomization.yaml",
+            {"app-project.yaml", "hello-api-application.yaml"},
         )
-        for marker in (
-            "REPLACE_WITH_HELLO_API_CLIENT_ID",
-            "REPLACE_WITH_KEY_VAULT_URI",
-        ):
-            require(marker in (CHART_DIR / "values-gitops.yaml.example").read_text(encoding="utf-8"), f"Missing template marker: {marker}")
+
+        require(local_values.get("image", {}).get("repository") == "kaviont/hello-api", "Local values must use the local image.")
+        require(local_values.get("image", {}).get("tag") == "local", "Local values must use the local image tag.")
+        require(local_values.get("image", {}).get("pullPolicy") == "Never", "Local values must never pull the image from a registry.")
+        require(local_values.get("workloadIdentity", {}).get("enabled") is False, "Local values must disable Azure Workload Identity.")
+        require(local_values.get("localSecret", {}).get("enabled") is True, "Local values must use the local-only test secret.")
+        require(local_values.get("autoscaling", {}).get("enabled") is False, "Local profile must not require metrics-server.")
+        require(local_values.get("networkPolicy", {}).get("enabled") is False, "Local profile must not claim default kindnet enforces NetworkPolicy.")
 
     except (ValueError, TypeError, AttributeError) as exc:
         print(f"GitOps validation failed: {exc}", file=sys.stderr)
         return 1
 
-    print("Argo CD project, application, Kustomize entry point, and Helm values contract are valid.")
+    print("Azure and local Argo CD projects, applications, Kustomize entry points, and Helm values contracts are valid.")
     return 0
 
 

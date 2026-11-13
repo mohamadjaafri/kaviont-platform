@@ -32,11 +32,23 @@ def test_readiness_endpoint() -> None:
 
 def test_secret_status_uses_local_mode_without_vault(monkeypatch) -> None:
     monkeypatch.delenv("KEY_VAULT_URL", raising=False)
+    monkeypatch.delenv("LOCAL_DEMO_SECRET", raising=False)
 
     response = client.get("/v1/secret-status")
 
     assert response.status_code == 200
     assert response.json() == {"mode": "local", "secret_configured": False}
+
+
+def test_local_secret_status_reports_presence_without_returning_value(monkeypatch) -> None:
+    monkeypatch.delenv("KEY_VAULT_URL", raising=False)
+    monkeypatch.setenv("LOCAL_DEMO_SECRET", "local-only-test-value")
+
+    response = client.get("/v1/secret-status")
+
+    assert response.status_code == 200
+    assert response.json() == {"mode": "local", "secret_configured": True}
+    assert "local-only-test-value" not in response.text
 
 
 def test_secret_status_never_returns_secret_value(monkeypatch) -> None:
