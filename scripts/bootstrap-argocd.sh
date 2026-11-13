@@ -37,7 +37,8 @@ echo "Installing Argo CD ${ARGOCD_VERSION} into namespace argocd."
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply --server-side --force-conflicts -n argocd -f "${ARGOCD_MANIFEST_URL}"
 
-kubectl wait --for=condition=Established --timeout=180s   crd/applications.argoproj.io crd/appprojects.argoproj.io
+kubectl wait --for=condition=Established --timeout=180s \
+  crd/applications.argoproj.io crd/appprojects.argoproj.io
 kubectl rollout status deployment/argocd-server -n argocd --timeout=300s
 
 # The demo namespace is pre-created by the bootstrap operator. Keeping it outside
