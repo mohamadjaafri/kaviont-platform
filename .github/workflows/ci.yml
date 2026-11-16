@@ -78,7 +78,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
 
       - name: Lint chart
         run: helm lint charts/hello-api
@@ -105,7 +105,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
 
       - name: Install YAML validation dependency
         run: python -m pip install "PyYAML>=6,<7"
