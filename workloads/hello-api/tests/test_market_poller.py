@@ -75,10 +75,10 @@ def test_poller_starts_immediately_and_stops_cleanly() -> None:
         return sample_ticker(pair)
 
     async def scenario():
-        poller = KrakenTickerPoller(interval_seconds=0.1, fetcher=fetcher)
+        poller = KrakenTickerPoller(interval_seconds=1.0, fetcher=fetcher)
         await poller.start()
         assert poller.running is True
-        await asyncio.sleep(0.15)
+        await asyncio.sleep(1.05)
         await poller.stop()
         assert poller.running is False
         return len(calls)

@@ -247,7 +247,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Provider:** Kraken public REST market-data API. No API key or account is required.\\n\\n**API route:** \\`GET /v1/market/kraken/ticker\\` (defaults to \\`XBTUSD\\`; pass another pair with \\`?pair=XBTEUR\\`). Each route call makes one outbound request. No background polling or automatic retries are configured.\\n\\n**Trace:** Find the \\`kraken.public_ticker\\` child span in Tempo under service \\`hello-api\\`. \\`retrieved_at\\` is the time Kaviont fetched the snapshot, not an exchange event timestamp. This integration reads public market data only and does not submit orders."
+        "content": "**Provider:** Kraken public REST market-data API. No API key or account is required.\n\n**Automatic polling:** The API fetches the configured pair immediately on startup and refreshes it every 60 seconds by default. The ticker route returns the in-memory cached snapshot and does not make an upstream request.\n\n**API routes:** GET /v1/market/kraken/ticker returns the latest snapshot; GET /v1/market/kraken/status shows polling and cache freshness. Configure KRAKEN_MARKET_PAIR, KRAKEN_POLL_INTERVAL_SECONDS, and KRAKEN_POLLING_ENABLED.\n\n**Trace:** Find the kraken.public_ticker span in Tempo under service hello-api. retrieved_at is when Kaviont fetched the snapshot, not an exchange event timestamp. The integration reads public market data only and does not submit orders."
       }
     }
   ],
