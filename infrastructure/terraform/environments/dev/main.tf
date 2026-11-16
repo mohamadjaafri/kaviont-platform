@@ -82,12 +82,11 @@ resource "azurerm_user_assigned_identity" "hello_api" {
 }
 
 resource "azurerm_federated_identity_credential" "hello_api" {
-  name                = "${local.name_base}-hello-api"
-  resource_group_name = azurerm_resource_group.platform.name
-  parent_id           = azurerm_user_assigned_identity.hello_api.id
-  audience            = ["api://AzureADTokenExchange"]
-  issuer              = module.aks.oidc_issuer_url
-  subject             = "system:serviceaccount:demo:hello-api"
+  name                      = "${local.name_base}-hello-api"
+  user_assigned_identity_id = azurerm_user_assigned_identity.hello_api.id
+  audience                  = ["api://AzureADTokenExchange"]
+  issuer                    = module.aks.oidc_issuer_url
+  subject                   = "system:serviceaccount:demo:hello-api"
 }
 
 resource "azurerm_role_assignment" "hello_api_key_vault_secrets_user" {
