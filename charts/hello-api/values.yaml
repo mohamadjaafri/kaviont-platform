@@ -2,7 +2,7 @@ replicaCount: 2
 
 image:
   repository: ghcr.io/example/hello-api
-  tag: "0.1.0"
+  tag: "0.7.0"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -17,6 +17,11 @@ workloadIdentity:
   clientId: ""
   keyVaultUrl: ""
   secretName: platform-demo-token
+
+marketData:
+  pollingEnabled: true
+  pollIntervalSeconds: 60
+  pair: XBTUSD
 
 # Optional local-only test fixture. The Secret must be created out of band.
 localSecret:
