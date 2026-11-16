@@ -44,7 +44,7 @@ Docker Compose provides the faster application loop: it mounts the API source re
 
 The Kubernetes service account in namespace demo is trusted by the federated identity credential. The workload identity webhook injects the projected token into the labelled pod. Azure Identity exchanges that token for a Microsoft Entra token. The API reads a demo secret from Key Vault and reports only whether it exists.
 
-Detailed design: docs/architecture.md, ADR 0001-0004, docs/security-and-cost.md, and the runbooks under docs/runbooks/.
+Detailed design: docs/architecture.md, ADR 0001-0006, docs/security-and-cost.md, and the runbooks under docs/runbooks/.
 
 ## Repository layout
 

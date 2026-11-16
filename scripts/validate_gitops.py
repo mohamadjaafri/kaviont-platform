@@ -108,7 +108,7 @@ def main() -> int:
         require(azure_values.get("marketData", {}).get("worker", {}).get("enabled") is False, "Azure GitOps worker must remain disabled until an AKS database is configured.")
         require(azure_values.get("marketData", {}).get("pollIntervalSeconds") == 60, "Azure GitOps market-data polling must default to 60 seconds.")
         require(azure_values.get("marketData", {}).get("pair") == "XBTUSD", "Azure GitOps market-data pair must default to XBTUSD.")
-        require(azure_values.get("image", {}).get("tag") == "0.8.0", "Azure GitOps values must pin the sample image tag.")
+        require(azure_values.get("image", {}).get("tag") == "0.9.0", "Azure GitOps values must pin the sample image tag.")
         require(
             str(azure_values.get("image", {}).get("repository", "")).startswith("REPLACE_WITH_ACR_LOGIN_SERVER/"),
             "Azure GitOps values template must use the ACR output marker.",

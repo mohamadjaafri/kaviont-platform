@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import psycopg
@@ -220,6 +220,214 @@ class MarketDataRepository:
             }
         )
         return result
+
+
+    def latest_tickers(self, poll_interval_seconds: int) -> dict[str, Any]:
+        """Return the newest stored snapshot for every tracked Kraken pair."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT DISTINCT ON (provider, pair)
+                       provider, pair, last_price, bid, ask, volume_24h,
+                       high_24h, low_24h, fetched_at,
+                       EXTRACT(EPOCH FROM (now() - fetched_at))::double precision
+                           AS cache_age_seconds
+                FROM market_ticker_snapshots
+                WHERE provider = 'kraken'
+                ORDER BY provider, pair, fetched_at DESC, id DESC
+                """
+            ).fetchall()
+
+        tickers: list[dict[str, Any]] = []
+        for row in rows:
+            age = max(0.0, float(row["cache_age_seconds"] or 0.0))
+            tickers.append(
+                {
+                    "provider": row["provider"],
+                    "pair": row["pair"],
+                    "last_price": float(row["last_price"]),
+                    "bid": float(row["bid"]),
+                    "ask": float(row["ask"]),
+                    "volume_24h": float(row["volume_24h"]),
+                    "high_24h": float(row["high_24h"]),
+                    "low_24h": float(row["low_24h"]),
+                    "fetched_at": row["fetched_at"].isoformat(),
+                    "cache_age_seconds": round(age, 1),
+                    "stale": age > poll_interval_seconds * 2,
+                }
+            )
+
+        return {
+            "provider": "kraken",
+            "count": len(tickers),
+            "poll_interval_seconds": poll_interval_seconds,
+            "tickers": tickers,
+        }
+
+    def historical_ticker(
+        self,
+        pair: str,
+        time_range: str,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        """Return a chronological and evenly downsampled historical time series."""
+        durations = {
+            "1h": timedelta(hours=1),
+            "24h": timedelta(hours=24),
+            "7d": timedelta(days=7),
+        }
+        if time_range not in durations:
+            raise ValueError("time_range must be one of: 1h, 24h, 7d")
+        if not 2 <= limit <= 2000:
+            raise ValueError("limit must be between 2 and 2000")
+
+        window_end = datetime.now(timezone.utc)
+        window_start = window_end - durations[time_range]
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                WITH ranged AS (
+                    SELECT id, provider, pair, last_price, bid, ask,
+                           volume_24h, high_24h, low_24h, fetched_at
+                    FROM market_ticker_snapshots
+                    WHERE provider = 'kraken'
+                      AND pair = %s
+                      AND fetched_at >= %s
+                ),
+                ranked AS (
+                    SELECT *,
+                           count(*) OVER () AS total_points,
+                           ntile(GREATEST(%s - 1, 1))
+                               OVER (ORDER BY fetched_at, id) AS bucket
+                    FROM ranged
+                ),
+                sampled AS (
+                    SELECT DISTINCT ON (bucket)
+                           id, provider, pair, last_price, bid, ask,
+                           volume_24h, high_24h, low_24h, fetched_at,
+                           total_points
+                    FROM ranked
+                    ORDER BY bucket, fetched_at DESC, id DESC
+                ),
+                first_point AS (
+                    SELECT id, provider, pair, last_price, bid, ask,
+                           volume_24h, high_24h, low_24h, fetched_at,
+                           total_points
+                    FROM ranked
+                    ORDER BY fetched_at, id
+                    LIMIT 1
+                ),
+                selected AS (
+                    SELECT * FROM sampled
+                    UNION
+                    SELECT * FROM first_point
+                )
+                SELECT id, provider, pair, last_price, bid, ask,
+                       volume_24h, high_24h, low_24h, fetched_at,
+                       total_points
+                FROM selected
+                ORDER BY fetched_at ASC, id ASC
+                """,
+                (pair, window_start, limit),
+            ).fetchall()
+
+        total_points = int(rows[0]["total_points"]) if rows else 0
+        data = [
+            {
+                "timestamp": row["fetched_at"].isoformat(),
+                "price": float(row["last_price"]),
+                "bid": float(row["bid"]),
+                "ask": float(row["ask"]),
+                "volume_24h": float(row["volume_24h"]),
+                "high_24h": float(row["high_24h"]),
+                "low_24h": float(row["low_24h"]),
+            }
+            for row in rows
+        ]
+        return {
+            "provider": "kraken",
+            "pair": pair,
+            "range": time_range,
+            "window_start": window_start.isoformat(),
+            "window_end": window_end.isoformat(),
+            "total_points": total_points,
+            "returned_points": len(data),
+            "limit": limit,
+            "downsampled": total_points > len(data),
+            "data": data,
+        }
+
+    def market_summary(self, pair: str, time_range: str) -> dict[str, Any]:
+        """Calculate price change and descriptive statistics for a time window."""
+        durations = {
+            "1h": timedelta(hours=1),
+            "24h": timedelta(hours=24),
+            "7d": timedelta(days=7),
+        }
+        if time_range not in durations:
+            raise ValueError("time_range must be one of: 1h, 24h, 7d")
+
+        window_end = datetime.now(timezone.utc)
+        window_start = window_end - durations[time_range]
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    count(*) AS sample_count,
+                    (array_agg(last_price ORDER BY fetched_at ASC, id ASC))[1]
+                        AS first_price,
+                    (array_agg(last_price ORDER BY fetched_at DESC, id DESC))[1]
+                        AS latest_price,
+                    min(last_price) AS low_price,
+                    max(last_price) AS high_price,
+                    avg(last_price) AS average_price,
+                    min(fetched_at) AS first_fetched_at,
+                    max(fetched_at) AS last_fetched_at
+                FROM market_ticker_snapshots
+                WHERE provider = 'kraken'
+                  AND pair = %s
+                  AND fetched_at >= %s
+                """,
+                (pair, window_start),
+            ).fetchone()
+
+        sample_count = int(row["sample_count"] or 0)
+        first_price = float(row["first_price"]) if row["first_price"] is not None else None
+        latest_price = float(row["latest_price"]) if row["latest_price"] is not None else None
+        absolute_change = (
+            latest_price - first_price
+            if first_price is not None and latest_price is not None
+            else None
+        )
+        percent_change = (
+            (absolute_change / first_price) * 100.0
+            if absolute_change is not None and first_price
+            else None
+        )
+
+        return {
+            "provider": "kraken",
+            "pair": pair,
+            "range": time_range,
+            "window_start": window_start.isoformat(),
+            "window_end": window_end.isoformat(),
+            "sample_count": sample_count,
+            "first_price": first_price,
+            "latest_price": latest_price,
+            "price_change_absolute": absolute_change,
+            "price_change_percent": percent_change,
+            "low_price": float(row["low_price"]) if row["low_price"] is not None else None,
+            "high_price": float(row["high_price"]) if row["high_price"] is not None else None,
+            "average_price": float(row["average_price"]) if row["average_price"] is not None else None,
+            "first_fetched_at": (
+                row["first_fetched_at"].isoformat()
+                if row["first_fetched_at"] else None
+            ),
+            "last_fetched_at": (
+                row["last_fetched_at"].isoformat()
+                if row["last_fetched_at"] else None
+            ),
+        }
 
     def worker_status(
         self,

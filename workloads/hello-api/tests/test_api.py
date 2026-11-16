@@ -26,6 +26,57 @@ class ReadyRepository:
             "poll_interval_seconds": interval,
         }
 
+    def latest_tickers(self, interval):
+        return {
+            "provider": "kraken",
+            "count": 1,
+            "poll_interval_seconds": interval,
+            "tickers": [
+                {
+                    "pair": "XBTUSD",
+                    "last_price": 65000.0,
+                    "cache_age_seconds": 2.0,
+                    "stale": False,
+                }
+            ],
+        }
+
+    def historical_ticker(self, pair, time_range, limit):
+        return {
+            "provider": "kraken",
+            "pair": pair,
+            "range": time_range,
+            "window_start": "2026-11-16T11:00:00+00:00",
+            "window_end": "2026-11-16T12:00:00+00:00",
+            "total_points": 60,
+            "returned_points": 2,
+            "limit": limit,
+            "downsampled": True,
+            "data": [
+                {"timestamp": "2026-11-16T11:00:00+00:00", "price": 64000.0},
+                {"timestamp": "2026-11-16T12:00:00+00:00", "price": 65000.0},
+            ],
+        }
+
+    def market_summary(self, pair, time_range):
+        return {
+            "provider": "kraken",
+            "pair": pair,
+            "range": time_range,
+            "window_start": "2026-11-15T12:00:00+00:00",
+            "window_end": "2026-11-16T12:00:00+00:00",
+            "sample_count": 60,
+            "first_price": 64000.0,
+            "latest_price": 65000.0,
+            "price_change_absolute": 1000.0,
+            "price_change_percent": 1.5625,
+            "low_price": 63000.0,
+            "high_price": 66000.0,
+            "average_price": 64500.0,
+            "first_fetched_at": "2026-11-15T12:01:00+00:00",
+            "last_fetched_at": "2026-11-16T12:00:00+00:00",
+        }
+
     def worker_status(self, pair, interval):
         return {
             "provider": "kraken",
@@ -66,7 +117,7 @@ def test_root_returns_service_metadata() -> None:
     assert response.json() == {
         "service": "hello-api",
         "status": "running",
-        "version": "0.8.0",
+        "version": "0.9.0",
     }
 
 
@@ -149,6 +200,78 @@ def test_market_data_endpoint_returns_safe_error_when_database_is_unavailable(mo
     assert response.status_code == 503
     assert response.json() == {"detail": "Market data storage is unavailable"}
     assert "sensitive database diagnostic" not in response.text
+
+
+def test_kraken_tickers_endpoint_returns_all_tracked_pairs(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "get_market_repository", lambda: ReadyRepository())
+    response = client.get("/v1/market/kraken/tickers")
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+    assert response.json()["tickers"][0]["pair"] == "XBTUSD"
+
+
+def test_kraken_history_endpoint_accepts_supported_range_and_limit(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "get_market_repository", lambda: ReadyRepository())
+    response = client.get(
+        "/v1/market/kraken/history",
+        params={"pair": "xbtusd", "range": "1h", "limit": 100},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["pair"] == "XBTUSD"
+    assert response.json()["range"] == "1h"
+    assert response.json()["limit"] == 100
+    assert response.json()["downsampled"] is True
+    assert len(response.json()["data"]) == 2
+
+
+def test_kraken_history_endpoint_rejects_unsupported_range(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "get_market_repository", lambda: ReadyRepository())
+    response = client.get("/v1/market/kraken/history", params={"range": "30d"})
+
+    assert response.status_code == 422
+
+
+def test_kraken_history_endpoint_rejects_invalid_pair_and_limit(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "get_market_repository", lambda: ReadyRepository())
+    invalid_pair = client.get(
+        "/v1/market/kraken/history",
+        params={"pair": "BTC/USD"},
+    )
+    invalid_limit = client.get(
+        "/v1/market/kraken/history",
+        params={"limit": 2001},
+    )
+
+    assert invalid_pair.status_code == 422
+    assert invalid_limit.status_code == 422
+
+
+def test_kraken_summary_endpoint_returns_calculated_market_statistics(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "get_market_repository", lambda: ReadyRepository())
+    response = client.get(
+        "/v1/market/kraken/summary",
+        params={"pair": "XBTUSD", "range": "24h"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["sample_count"] == 60
+    assert payload["price_change_absolute"] == 1000.0
+    assert payload["price_change_percent"] == 1.5625
+    assert payload["low_price"] == 63000.0
+    assert payload["high_price"] == 66000.0
 
 
 def test_api_docs_are_enabled_in_local_environment(monkeypatch) -> None:

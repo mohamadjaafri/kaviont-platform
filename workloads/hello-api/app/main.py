@@ -1,6 +1,7 @@
 import os
+from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 
 from app.market_repository import (
     MarketDataNotReady,
@@ -14,10 +15,12 @@ environment = os.getenv("KAVIONT_ENV", "production").strip().lower()
 enable_api_docs = environment in {"local", "test"}
 market_pair = os.getenv("KRAKEN_MARKET_PAIR", "XBTUSD").strip().upper()
 market_poll_interval = int(os.getenv("KRAKEN_POLL_INTERVAL_SECONDS", "60"))
+PAIR_PATTERN = r"^[A-Za-z0-9]{5,12}$"
+MarketRange = Literal["1h", "24h", "7d"]
 
 app = FastAPI(
     title="Kaviont Hello API",
-    version="0.8.0",
+    version="0.9.0",
     docs_url="/docs" if enable_api_docs else None,
     redoc_url="/redoc" if enable_api_docs else None,
     openapi_url="/openapi.json" if enable_api_docs else None,
@@ -31,9 +34,21 @@ def get_market_repository() -> MarketDataRepository:
     return MarketDataRepository.from_environment()
 
 
+def _storage_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, MarketDataStorageNotConfigured):
+        return HTTPException(
+            status_code=503,
+            detail="Market data storage is not configured",
+        )
+    return HTTPException(
+        status_code=503,
+        detail="Market data storage is unavailable",
+    )
+
+
 @app.get("/", tags=["service"])
 def root() -> dict[str, str]:
-    return {"service": "hello-api", "status": "running", "version": "0.8.0"}
+    return {"service": "hello-api", "status": "running", "version": "0.9.0"}
 
 
 @app.get("/healthz", tags=["health"])
@@ -70,16 +85,59 @@ def kraken_ticker() -> dict[str, object]:
             status_code=503,
             detail="Market data is not available yet; the worker has not stored a snapshot",
         ) from exc
-    except MarketDataStorageNotConfigured as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="Market data storage is not configured",
-        ) from exc
     except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="Market data storage is unavailable",
-        ) from exc
+        raise _storage_error(exc) from exc
+
+
+@app.get("/v1/market/kraken/tickers", tags=["market-data"])
+def kraken_tickers() -> dict[str, object]:
+    """Return the newest stored snapshot for each tracked Kraken market pair."""
+    try:
+        return get_market_repository().latest_tickers(market_poll_interval)
+    except Exception as exc:
+        raise _storage_error(exc) from exc
+
+
+@app.get("/v1/market/kraken/history", tags=["market-data"])
+def kraken_history(
+    pair: str = Query(
+        default=market_pair,
+        min_length=5,
+        max_length=12,
+        pattern=PAIR_PATTERN,
+    ),
+    time_range: MarketRange = Query(default="24h", alias="range"),
+    limit: int = Query(default=500, ge=2, le=2000),
+) -> dict[str, object]:
+    """Return a downsampled chronological ticker series for a requested range."""
+    try:
+        return get_market_repository().historical_ticker(
+            pair.strip().upper(),
+            time_range,
+            limit,
+        )
+    except Exception as exc:
+        raise _storage_error(exc) from exc
+
+
+@app.get("/v1/market/kraken/summary", tags=["market-data"])
+def kraken_summary(
+    pair: str = Query(
+        default=market_pair,
+        min_length=5,
+        max_length=12,
+        pattern=PAIR_PATTERN,
+    ),
+    time_range: MarketRange = Query(default="24h", alias="range"),
+) -> dict[str, object]:
+    """Return price change, high/low, average, and sample count for a range."""
+    try:
+        return get_market_repository().market_summary(
+            pair.strip().upper(),
+            time_range,
+        )
+    except Exception as exc:
+        raise _storage_error(exc) from exc
 
 
 @app.get("/v1/market/kraken/status", tags=["market-data"])
@@ -90,16 +148,8 @@ def kraken_worker_status() -> dict[str, object]:
             market_pair,
             market_poll_interval,
         )
-    except MarketDataStorageNotConfigured as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="Market data storage is not configured",
-        ) from exc
     except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="Market data storage is unavailable",
-        ) from exc
+        raise _storage_error(exc) from exc
 
 
 @app.get("/v1/secret-status", tags=["configuration"])
