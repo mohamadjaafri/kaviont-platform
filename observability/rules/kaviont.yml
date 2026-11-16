@@ -1,0 +1,113 @@
+groups:
+  - name: kaviont-recording-rules
+    interval: 30s
+    rules:
+      - record: kaviont:http_requests:rate5m
+        expr: sum(rate(kaviont_http_server_request_duration_seconds_count[5m]))
+
+      - record: kaviont:http_errors:rate5m
+        expr: sum(rate(kaviont_http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+
+      - record: kaviont:http_errors:ratio5m
+        expr: |
+          (sum(rate(kaviont_http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) or vector(0))
+          /
+          clamp_min((sum(rate(kaviont_http_server_request_duration_seconds_count[5m])) or vector(0)), 1e-9)
+
+      - record: kaviont:http_latency:p95_5m
+        expr: histogram_quantile(0.95, sum by (le) (rate(kaviont_http_server_request_duration_seconds_bucket[5m])))
+
+      - record: kaviont:slo:availability:ratio30d
+        expr: |
+          1 -
+          (
+            (sum(increase(kaviont_http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[30d])) or vector(0))
+            /
+            clamp_min((sum(increase(kaviont_http_server_request_duration_seconds_count[30d])) or vector(0)), 1)
+          )
+
+      - record: kaviont:slo:error_budget:remaining_ratio30d
+        expr: clamp_max(clamp_min(1 - ((1 - kaviont:slo:availability:ratio30d) / 0.001), 0), 1)
+
+      - record: kaviont:slo:error_budget:burn_rate5m
+        expr: kaviont:http_errors:ratio5m / 0.001
+
+      - record: kaviont:slo:error_budget:burn_rate1h
+        expr: |
+          (
+            (sum(rate(kaviont_http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[1h])) or vector(0))
+            /
+            clamp_min((sum(rate(kaviont_http_server_request_duration_seconds_count[1h])) or vector(0)), 1e-9)
+          ) / 0.001
+
+  - name: kaviont-alert-rules
+    rules:
+      - alert: KaviontAPIReadinessProbeFailed
+        expr: probe_success{probe="readiness"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: hello-api
+        annotations:
+          summary: "Kaviont hello-api readiness probe failed"
+          description: "The synthetic HTTP probe has failed for at least one minute."
+
+      - alert: KaviontAPIHighErrorRate
+        expr: (kaviont:http_errors:ratio5m > 0.05) and (kaviont:http_requests:rate5m > 0.1)
+        for: 2m
+        labels:
+          severity: warning
+          service: hello-api
+        annotations:
+          summary: "Kaviont API 5xx ratio is above 5%"
+          description: "More than 5% of API requests returned HTTP 5xx responses over five minutes."
+
+      - alert: KaviontAPIHighLatency
+        expr: kaviont:http_latency:p95_5m > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: hello-api
+        annotations:
+          summary: "Kaviont API p95 latency is above 500 ms"
+          description: "The five-minute p95 request latency exceeded 500 milliseconds."
+
+      - alert: KaviontSLOBurnRateCritical
+        expr: (kaviont:slo:error_budget:burn_rate5m > 14.4) and (kaviont:slo:error_budget:burn_rate1h > 14.4)
+        for: 2m
+        labels:
+          severity: critical
+          service: hello-api
+        annotations:
+          summary: "Kaviont availability error budget is burning rapidly"
+          description: "The multi-window error-budget burn rate is above 14.4x for both five minutes and one hour."
+
+      - alert: KaviontSLOErrorBudgetNearlyExhausted
+        expr: kaviont:slo:error_budget:remaining_ratio30d < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: hello-api
+        annotations:
+          summary: "Kaviont availability error budget is nearly exhausted"
+          description: "Less than 10% of the rolling 30-day error budget remains."
+
+      - alert: KaviontProcessCPUHigh
+        expr: kaviont_process_cpu_usage_ratio > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: hello-api
+        annotations:
+          summary: "Kaviont API process CPU is above 80%"
+          description: "The hello-api process has sustained high CPU utilization."
+
+      - alert: KaviontProcessMemoryHigh
+        expr: kaviont_process_memory_usage_bytes > 536870912
+        for: 5m
+        labels:
+          severity: warning
+          service: hello-api
+        annotations:
+          summary: "Kaviont API process memory is above 512 MiB"
+          description: "The hello-api process has sustained resident memory usage above 512 MiB."

@@ -57,6 +57,22 @@ jobs:
           docker compose --profile dev --profile test config --quiet
           docker compose --profile observability config --quiet
 
+      - name: Validate Prometheus configuration and rules
+        run: |
+          docker run --rm \
+            --volume "$PWD/observability:/etc/prometheus:ro" \
+            --entrypoint=/bin/promtool \
+            prom/prometheus:v2.55.1 \
+            check config /etc/prometheus/prometheus.yaml
+
+      - name: Validate Alertmanager configuration
+        run: |
+          docker run --rm \
+            --volume "$PWD/observability/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro" \
+            --entrypoint=/bin/amtool \
+            prom/alertmanager:v0.35.0 \
+            check-config /etc/alertmanager/alertmanager.yaml
+
       - name: Build and run tests inside the test image
         run: |
           docker buildx build --load --target test \
@@ -113,7 +129,7 @@ jobs:
       - name: Validate Argo CD project, application, and values contract
         run: python scripts/validate_gitops.py
 
-      - name: Validate observability configuration
+      - name: Validate operations and observability configuration
         run: python scripts/validate_observability.py
 
       - name: Lint hello-api using GitOps values template
