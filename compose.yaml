@@ -85,12 +85,28 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=24h
+      - --storage.tsdb.retention.time=30d
     volumes:
       - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
+    depends_on:
+      - hello-api
+      - blackbox-exporter
+      - alertmanager
+    restart: unless-stopped
+
+  blackbox-exporter:
+    profiles: ["observability"]
+    image: prom/blackbox-exporter:v0.29.1
+    command:
+      - --config.file=/etc/blackbox/blackbox.yaml
+    volumes:
+      - ./observability/blackbox.yaml:/etc/blackbox/blackbox.yaml:ro
+    ports:
+      - "127.0.0.1:9115:9115"
     restart: unless-stopped
 
   tempo:
@@ -102,6 +118,28 @@ services:
       - tempo-data:/var/tempo
     ports:
       - "127.0.0.1:3200:3200"
+    restart: unless-stopped
+
+  alertmanager:
+    profiles: ["observability"]
+    image: prom/alertmanager:v0.35.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yaml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./observability/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"
+    depends_on:
+      - mailpit
+    restart: unless-stopped
+
+  mailpit:
+    profiles: ["observability"]
+    image: axllent/mailpit:v1.27.4
+    ports:
+      - "127.0.0.1:8025:8025"
     restart: unless-stopped
 
   grafana:
@@ -120,9 +158,11 @@ services:
     depends_on:
       - prometheus
       - tempo
+      - alertmanager
     restart: unless-stopped
 
 volumes:
   prometheus-data:
   tempo-data:
   grafana-data:
+  alertmanager-data:
