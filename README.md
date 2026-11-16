@@ -25,8 +25,9 @@ Kaviont is an independent engineering reference project for building a repeatabl
 - Docker Compose development profile with source hot reload and containerized tests.
 - Single-node kind profile with a separate restricted local Argo CD Application.
 - Multi-stage container build with BuildKit dependency caching and distinct runtime/test targets.
-- Optional local OpenTelemetry pipeline with Collector, Prometheus, Tempo, and Grafana.
-- GitHub Actions checks for both Terraform roots, Helm, Python tests, container build, and GitOps manifests.
+- Optional local operations stack with OpenTelemetry, Prometheus, Tempo, Grafana, Blackbox Exporter, Alertmanager, and Mailpit.
+- Rolling 30-day 99.9% request availability objective, error-budget recording rules, golden-signal alerts, and local email notification tests.
+- GitHub Actions checks for both Terraform roots, Helm, Python tests, container build, Prometheus rules, Alertmanager config, and GitOps manifests.
 
 ## Architecture
 
@@ -50,7 +51,8 @@ Detailed design: docs/architecture.md, ADR 0001-0004, docs/security-and-cost.md,
 - charts/hello-api: Helm chart and GitOps values template
 - gitops/argocd: Azure and local AppProjects, Applications, and Kustomize entry points
 - kind: single-node local Kubernetes cluster configuration
-- compose.yaml: containerized API development and test profiles
+- compose.yaml: containerized API development, test, and operations profiles
+- observability: Collector, Prometheus, SLO rules, Blackbox Exporter, Alertmanager, Tempo, and Grafana configuration
 - scripts: Terraform output renderer, Argo CD bootstrap, local cluster lifecycle, and GitOps validator
 - infrastructure/terraform/bootstrap/state: remote state foundation
 - infrastructure/terraform/environments/dev: development platform
@@ -63,38 +65,40 @@ Detailed design: docs/architecture.md, ADR 0001-0004, docs/security-and-cost.md,
 
 The fastest loop uses Docker Compose. You need Docker Engine and Docker Compose v2, but no host Python installation and no Azure subscription.
 
-```bash
-make dev-up
-make container-test
-make dev-logs
-make dev-down
-```
+    make dev-up
+    make container-test
+    make dev-logs
+    make dev-down
 
 The API listens on http://127.0.0.1:8080 and reloads when you change Python source. The test runner is a separate container target. Dependencies are cached by BuildKit.
 
-For Kubernetes and GitOps integration, install kind, kubectl, and OpenSSL, then follow [the local development runbook](docs/runbooks/local-development.md):
+For Kubernetes and GitOps integration, install kind, kubectl, and OpenSSL, then follow docs/runbooks/local-development.md:
 
-```bash
-make local-up
-make local-status
-make local-forward
-make local-build
-make local-down
-```
+    make local-up
+    make local-status
+    make local-forward
+    make local-build
+    make local-down
 
 The kind cluster has one node. The application image is loaded directly into that node, never pushed to ACR. The local Argo CD Application and Azure Argo CD Application use separate projects, namespaces, and values files.
 
-## Local observability
+## Local operations dashboard
 
-Start the optional telemetry stack:
+Start the optional telemetry and operations stack:
 
-```bash
-make observability-up
-```
+    make observability-up
 
-Open Grafana at http://127.0.0.1:3000 (local default: admin / admin). The provisioned **Kaviont - Hello API** dashboard includes request rate, p95 latency, 5xx ratio, and a Tempo trace search panel. Prometheus is available at http://127.0.0.1:9090.
+Open the provisioned **Kaviont - Operations Overview** dashboard in Grafana at http://127.0.0.1:3000 (local default: admin / admin). It includes the rolling 30-day availability SLO, remaining error budget, request rate, 5xx ratio, p95 latency, readiness probe, API process CPU/RAM, and Tempo traces.
 
-Generate sample traffic with curl, then stop the telemetry containers with `make observability-down`. See [the observability runbook](docs/runbooks/observability-local.md) for details. This is a local learning profile, not production monitoring.
+Operational alerts are evaluated by Prometheus and routed through Alertmanager. Mailpit catches notification emails locally at http://127.0.0.1:8025, without sending them externally. Prometheus is at http://127.0.0.1:9090 and Alertmanager is at http://127.0.0.1:9093.
+
+For a controlled local alert demonstration, generate HTTP 500 responses using:
+
+    for i in $(seq 1 40); do
+      curl -sS -o /dev/null http://127.0.0.1:8080/__test__/error
+    done
+
+The fault-injection route is registered only in local/test environments. See docs/runbooks/observability-local.md for setup, expected alert timing, and cleanup. This is a local learning profile, not production monitoring.
 
 ## Validate infrastructure and charts
 
@@ -142,7 +146,9 @@ The Argo CD AppProject restricts the application to this repository, the in-clus
 
 The GitHub Actions workflow validates source code only. It does not authenticate to Azure, read remote state, or deploy resources. A production pipeline should use GitHub OIDC federation, protected environments, approval gates, and narrowly scoped state and deployment permissions.
 
-The project does not yet implement private AKS/Key Vault/state endpoints, policy-as-code enforcement, image signing, secret rotation, centralized production observability, or production HA. These are roadmap items, not current capabilities. A local-only observability profile is available for development and learning.
+The local operations profile binds its ports to localhost and uses Mailpit as a mail sink. It is not production monitoring: Prometheus, Tempo, Alertmanager, Mailpit, and Blackbox Exporter have no authentication or TLS. Process CPU and memory metrics describe hello-api only, not the entire Docker host or an AKS cluster. The 99.9% objective is an example request-based SLO, not a contractual SLA.
+
+The project does not yet implement private AKS/Key Vault/state endpoints, policy-as-code enforcement, image signing, secret rotation, centralized production observability, or production HA. These are roadmap items, not current capabilities.
 
 AKS nodes, disks, load balancers, registry storage, Key Vault operations, state storage, Argo CD and network egress can incur charges while the environment exists. Review current regional pricing and destroy unused development resources.
 
@@ -162,9 +168,7 @@ See CONTRIBUTING.md. The project is licensed under MIT. See LICENSE.
 ## Technical references
 
 - Terraform azurerm backend: https://developer.hashicorp.com/terraform/language/backend/azurerm
-- AzureRM Storage Account resource: https://registry.terraform.io/providers/hashicorp/azurerm/4.59.0/docs/resources/storage_account
 - Microsoft Entra Workload ID on AKS: https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview
 - Key Vault RBAC guide: https://learn.microsoft.com/en-us/azure/key-vault/general/rbac-guide
-- Argo CD v3.6.1 release: https://github.com/argoproj/argo-cd/releases/tag/v3.6.1
 - Argo CD Application specification: https://argo-cd.readthedocs.io/en/stable/user-guide/application-specification/
 - Argo CD automated sync: https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/
