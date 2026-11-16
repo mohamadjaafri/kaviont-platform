@@ -61,8 +61,9 @@ jobs:
         run: |
           docker run --rm \
             --volume "$PWD/observability:/etc/prometheus:ro" \
+            --entrypoint=/bin/promtool \
             prom/prometheus:v2.55.1 \
-            promtool check config /etc/prometheus/prometheus.yaml
+            check config /etc/prometheus/prometheus.yaml
 
       - name: Validate Alertmanager configuration
         run: |
