@@ -68,6 +68,15 @@ jobs:
             prom/alertmanager:v0.35.0 \
             check-config /etc/alertmanager/alertmanager.yaml
 
+      - name: Verify Alertmanager to Mailpit email delivery
+        run: |
+          docker compose --profile observability up -d mailpit alertmanager
+          python scripts/test_alert_email.py
+
+      - name: Stop email test services
+        if: always()
+        run: docker compose --profile observability down --remove-orphans
+
       - name: Build and run tests inside the test image
         run: |
           docker buildx build --load --target test \

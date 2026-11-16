@@ -3,7 +3,7 @@ TF_DIR := infrastructure/terraform/environments/dev
 APP_DIR := workloads/hello-api
 CHART_DIR := charts/hello-api
 
-.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check prometheus-check observability-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-down observability-logs
+.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check prometheus-check observability-check email-delivery-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-down observability-logs
 
 fmt:
 	terraform fmt -recursive infrastructure/terraform
@@ -44,6 +44,11 @@ prometheus-check:
 observability-check:
 	python scripts/validate_observability.py
 	$(MAKE) prometheus-check
+
+# End-to-end check of Prometheus' notification backend (Alertmanager -> SMTP -> Mailpit).
+email-delivery-check:
+	docker compose --profile observability up -d mailpit alertmanager
+	python scripts/test_alert_email.py
 
 image-build:
 	docker build -t kaviont/hello-api:dev $(APP_DIR)

@@ -152,3 +152,21 @@ This is a local learning profile, not production monitoring. It uses local stora
 The CPU and memory gauges describe the hello-api process, not every Docker container or the host. The profile does not mount the Docker socket. A production AKS implementation should use a properly secured infrastructure metrics pipeline and managed alert notification destinations.
 
 Do not put credentials, request bodies, personal data, or secret values into span attributes or logs. The local fault-injection route is not registered in the production environment.
+
+## Verify Alertmanager email delivery end to end
+
+The Prometheus rule tests validate the alert expressions. To verify the separate notification path from Alertmanager through SMTP into Mailpit, run:
+
+    make email-delivery-check
+
+This starts only the Mailpit and Alertmanager services, submits a uniquely marked synthetic alert through Alertmanager's API v2, and checks Mailpit's message API for the delivered email at platform-ops@local.test. The test fails with a non-zero exit code if Alertmanager does not deliver the message before the timeout.
+
+This check deliberately bypasses Prometheus rule evaluation. Use it together with:
+
+    make observability-check
+
+For diagnosis, inspect the notification services:
+
+    docker compose --profile observability logs --tail=100 alertmanager mailpit
+
+Mailpit is a local SMTP sink. A successful test proves delivery into the local inbox; it does not send an email to an external mailbox.
