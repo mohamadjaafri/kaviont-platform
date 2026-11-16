@@ -165,6 +165,26 @@ def main() -> int:
         if not required_panels.issubset(panel_titles):
             raise ValueError("Grafana operations dashboard is missing required panels")
 
+        latency_panels = [
+            panel for panel in dashboard.get("panels", [])
+            if panel.get("title") == "Latency · p95"
+        ]
+        if len(latency_panels) != 2:
+            raise ValueError("Grafana operations dashboard must expose both p95 latency panels")
+        if any(
+            panel.get("fieldConfig", {}).get("defaults", {}).get("unit") != "ms"
+            for panel in latency_panels
+        ):
+            raise ValueError("Grafana p95 latency panels must display milliseconds")
+        latency_stat = next(panel for panel in latency_panels if panel.get("type") == "stat")
+        latency_thresholds = {
+            step.get("value")
+            for step in latency_stat.get("fieldConfig", {}).get("defaults", {})
+                .get("thresholds", {}).get("steps", [])
+        }
+        if not {250, 500}.issubset(latency_thresholds):
+            raise ValueError("Grafana p95 thresholds must match 250 ms and 500 ms")
+
         if financial_dashboard.get("uid") != "kaviont-financial-data":
             raise ValueError("Grafana financial dashboard UID is missing or unexpected")
         financial_panel_titles = {
