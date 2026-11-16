@@ -57,13 +57,8 @@ jobs:
           docker compose --profile dev --profile test config --quiet
           docker compose --profile observability config --quiet
 
-      - name: Validate Prometheus configuration and rules
-        run: |
-          docker run --rm \
-            --volume "$PWD/observability:/etc/prometheus:ro" \
-            --entrypoint=/bin/promtool \
-            prom/prometheus:v2.55.1 \
-            check config /etc/prometheus/prometheus.yaml
+      - name: Validate Prometheus configuration, rules, and alert behavior
+        run: make prometheus-check
 
       - name: Validate Alertmanager configuration
         run: |

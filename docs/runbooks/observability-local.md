@@ -108,13 +108,20 @@ When a pair has no stored observations in the selected range, the history endpoi
 
 The API exposes /__test__/error only when KAVIONT_ENV is local or test. The Compose observability profile sets KAVIONT_ENV=local. The endpoint does not exist in the production configuration.
 
-Generate a short burst:
+Validate the observability configuration and the Prometheus rule behavior before running the test:
 
-    for i in $(seq 1 40); do
+    make observability-check
+
+Generate sustained 5xx traffic so the five-minute error ratio and minimum request-rate conditions remain true throughout the alert's two-minute pending period:
+
+    for i in $(seq 1 180); do
       curl -sS -o /dev/null http://127.0.0.1:8080/__test__/error
+      sleep 1
     done
 
-The 5xx alert requires a sustained error ratio above 5% and a minimum request rate. Wait for the rule's two-minute pending duration and Alertmanager's grouping delay. The notification appears in Mailpit at http://127.0.0.1:8025.
+The alert requires an error ratio above 5%, a request rate above 0.1 requests per second, and a continuous two-minute pending period. Prometheus evaluates rules every 30 seconds. Alertmanager then applies its 10-second grouping delay. The notification appears in Mailpit at http://127.0.0.1:8025.
+
+Prometheus rule tests are maintained in observability/rules/kaviont.test.yml. They inject synthetic 200 and 500 request counters, verify the computed request rate and error ratio, and assert that KaviontAPIHighErrorRate fires. The CI pipeline runs these tests with promtool so metric-name or label regressions are caught before merge.
 
 The readiness alert can be tested by temporarily stopping the API:
 

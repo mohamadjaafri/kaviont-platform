@@ -3,7 +3,7 @@ TF_DIR := infrastructure/terraform/environments/dev
 APP_DIR := workloads/hello-api
 CHART_DIR := charts/hello-api
 
-.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-down observability-logs
+.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check prometheus-check observability-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-down observability-logs
 
 fmt:
 	terraform fmt -recursive infrastructure/terraform
@@ -30,10 +30,20 @@ helm-check:
 gitops-check:
 	python -m pip install "PyYAML>=6,<7"
 	python scripts/validate_gitops.py
+	$(MAKE) observability-check
 	helm lint $(CHART_DIR) --values $(CHART_DIR)/values-gitops.yaml.example
 	helm template hello-api $(CHART_DIR) --namespace demo --values $(CHART_DIR)/values-gitops.yaml.example >/dev/null
 	helm lint $(CHART_DIR) --values $(CHART_DIR)/values-local.yaml
 	helm template hello-api-local $(CHART_DIR) --namespace kaviont-local --values $(CHART_DIR)/values-local.yaml >/dev/null
+
+prometheus-check:
+	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yaml
+	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check rules /etc/prometheus/rules/kaviont.yml /etc/prometheus/rules/financial.yml
+	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --workdir /etc/prometheus --entrypoint=/bin/promtool prom/prometheus:v2.55.1 test rules rules/kaviont.test.yml
+
+observability-check:
+	python scripts/validate_observability.py
+	$(MAKE) prometheus-check
 
 image-build:
 	docker build -t kaviont/hello-api:dev $(APP_DIR)

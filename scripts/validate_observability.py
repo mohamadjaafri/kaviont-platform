@@ -103,6 +103,35 @@ def main() -> int:
         if not required_alerts.issubset(alert_names):
             raise ValueError("Operational alert rules are incomplete")
 
+        rule_expressions = [
+            str(rule.get("expr", ""))
+            for group in groups
+            for rule in group.get("rules", [])
+        ]
+        all_rule_expressions = "\n".join(rule_expressions)
+        required_http_metrics = {
+            "kaviont_http_server_duration_milliseconds_count",
+            "kaviont_http_server_duration_milliseconds_bucket",
+        }
+        for metric_name in required_http_metrics:
+            if metric_name not in all_rule_expressions:
+                raise ValueError(f"HTTP SLO rules must use the exported metric {metric_name}")
+        if 'http_status_code=~"5.."' not in all_rule_expressions:
+            raise ValueError("HTTP error rules must filter the exported http_status_code label")
+        obsolete_http_identifiers = (
+            "kaviont_http_server_request_duration_seconds",
+            "http_response_status_code",
+        )
+        if any(identifier in all_rule_expressions for identifier in obsolete_http_identifiers):
+            raise ValueError("HTTP SLO rules contain obsolete OpenTelemetry metric or label names")
+
+        latency_alert = next(
+            rule for group in groups for rule in group.get("rules", [])
+            if rule.get("alert") == "KaviontAPIHighLatency"
+        )
+        if "kaviont:http_latency:p95_5m > 500" not in str(latency_alert.get("expr", "")):
+            raise ValueError("The p95 alert threshold must use milliseconds (500 ms)")
+
         financial_recordings = {
             rule.get("record")
             for group in financial_rules.get("groups", [])
