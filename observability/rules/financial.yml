@@ -1,0 +1,21 @@
+groups:
+  - name: kaviont-financial-recording-rules
+    interval: 30s
+    rules:
+      - record: kaviont:financial_api_requests:rate5m
+        expr: sum(rate(kaviont_financial_api_requests_total[5m]))
+
+      - record: kaviont:financial_api_errors:ratio5m
+        expr: |
+          (sum(rate(kaviont_financial_api_requests_total{outcome!="success"}[5m])) or vector(0))
+          /
+          clamp_min((sum(rate(kaviont_financial_api_requests_total[5m])) or vector(0)), 1e-9)
+
+      - record: kaviont:financial_api_latency:p95_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(kaviont_financial_api_request_duration_seconds_bucket[5m])
+            )
+          )

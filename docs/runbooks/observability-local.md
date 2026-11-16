@@ -9,7 +9,7 @@ Kaviont's local operations profile is an optional Docker Compose stack. It demon
 - Prometheus: scrapes the Collector and Blackbox Exporter, retains up to 30 days of local metrics, evaluates SLO recording rules, and fires alerts.
 - Blackbox Exporter: probes the API readiness endpoint over HTTP.
 - Tempo: local trace storage with a 24-hour retention policy.
-- Grafana: provisioned Kaviont - Operations Overview dashboard.
+- Grafana: provisioned Kaviont operations and financial-data dashboards.
 - Alertmanager: groups and routes Prometheus alerts.
 - Mailpit: catches SMTP alert emails in a local inbox; no external email is sent.
 
@@ -31,7 +31,7 @@ Wait until the containers are running:
 - Tempo: http://127.0.0.1:3200
 - Blackbox Exporter: http://127.0.0.1:9115
 
-The Grafana dashboard includes:
+The Grafana operations dashboard includes:
 - Availability SLO over a rolling 30-day window (target 99.9%).
 - Remaining error budget (0.1% request budget).
 - Current 5xx ratio, request rate, p95 latency, and readiness status.
@@ -46,6 +46,27 @@ The Grafana dashboard includes:
     done
 
 Wait for the OTLP metric export and Prometheus scrape intervals, then refresh Grafana. New environments need time to accumulate a 30-day history; the SLO panel uses the data currently retained.
+
+## Retrieve real financial market data
+
+The local API can fetch a live ticker snapshot from Kraken's public REST API. The public market-data endpoint does not require a Kraken account or API key. Kaviont calls it only when this route is requested; there is no background polling and no automatic retry loop.
+
+    curl -sS http://127.0.0.1:8080/v1/market/kraken/ticker
+
+The default pair is XBTUSD (Bitcoin/USD). You can request another pair, for example:
+
+    curl -sS "http://127.0.0.1:8080/v1/market/kraken/ticker?pair=XBTEUR"
+
+The normalized response contains the last traded price, best bid and ask, 24-hour volume, high, low, and the time Kaviont retrieved the snapshot. retrieved_at is the fetch time, not an exchange event timestamp. The integration reads public market data only; it does not create orders or access private account endpoints.
+
+Each successful or failed upstream call emits:
+- A kraken.public_ticker child span under the incoming FastAPI request trace.
+- financial.api.requests counter data with provider, pair, and outcome attributes.
+- financial.api.request.duration histogram data for latency.
+
+Open Grafana's **Kaviont - Financial Data Reliability** dashboard. It shows external request rate, provider error ratio, p95 latency, and request/latency trends by market pair. The dashboard stays empty until the market-data route has been called and telemetry has been scraped. In Tempo, filter for service hello-api and inspect the kraken.public_ticker span.
+
+Use a modest request rate and follow Kraken's public API usage limits. A provider failure is exposed as HTTP 502, and an upstream timeout is exposed as HTTP 504. The API response intentionally hides provider internals.
 
 ## Trigger a controlled 5xx alert
 

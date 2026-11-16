@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the local OpenTelemetry, SLO, alerting, and dashboard configuration."""
+"""Validate local OpenTelemetry, SLO, alerting, dashboard, and finance config."""
 
 from __future__ import annotations
 
@@ -26,9 +26,13 @@ def main() -> int:
         blackbox = load_yaml(ROOT / "observability/blackbox.yaml")
         alertmanager = load_yaml(ROOT / "observability/alertmanager.yaml")
         rules = load_yaml(ROOT / "observability/rules/kaviont.yml")
+        financial_rules = load_yaml(ROOT / "observability/rules/financial.yml")
         tempo = load_yaml(ROOT / "observability/tempo.yaml")
         dashboard = json.loads(
             (ROOT / "observability/grafana/dashboards/hello-api.json").read_text(encoding="utf-8")
+        )
+        financial_dashboard = json.loads(
+            (ROOT / "observability/grafana/dashboards/financial-market.json").read_text(encoding="utf-8")
         )
         compose = load_yaml(ROOT / "compose.yaml")
 
@@ -51,6 +55,8 @@ def main() -> int:
             raise ValueError("Prometheus must send alerts to Alertmanager")
         if not prometheus.get("rule_files"):
             raise ValueError("Prometheus must load the SLO and alert rule files")
+        if "/etc/prometheus/rules/*.yml" not in prometheus["rule_files"]:
+            raise ValueError("Prometheus must load the financial recording rules")
 
         if "http_2xx" not in blackbox.get("modules", {}):
             raise ValueError("Blackbox Exporter must define the http_2xx probe")
@@ -97,6 +103,20 @@ def main() -> int:
         if not required_alerts.issubset(alert_names):
             raise ValueError("Operational alert rules are incomplete")
 
+        financial_recordings = {
+            rule.get("record")
+            for group in financial_rules.get("groups", [])
+            for rule in group.get("rules", [])
+            if "record" in rule
+        }
+        required_financial_recordings = {
+            "kaviont:financial_api_requests:rate5m",
+            "kaviont:financial_api_errors:ratio5m",
+            "kaviont:financial_api_latency:p95_5m",
+        }
+        if not required_financial_recordings.issubset(financial_recordings):
+            raise ValueError("Financial API recording rules are incomplete")
+
         if tempo.get("storage", {}).get("trace", {}).get("backend") != "local":
             raise ValueError("Local Tempo must use local storage")
         if dashboard.get("uid") != "kaviont-operations":
@@ -115,6 +135,31 @@ def main() -> int:
         }
         if not required_panels.issubset(panel_titles):
             raise ValueError("Grafana operations dashboard is missing required panels")
+
+        if financial_dashboard.get("uid") != "kaviont-financial-data":
+            raise ValueError("Grafana financial dashboard UID is missing or unexpected")
+        financial_panel_titles = {
+            panel.get("title") for panel in financial_dashboard.get("panels", [])
+        }
+        required_financial_panels = {
+            "External API Request Rate",
+            "Kraken API Error Ratio",
+            "Kraken API Latency · p95",
+            "Requests by Market Pair and Outcome",
+            "External API Latency · p95 by Pair",
+        }
+        if not required_financial_panels.issubset(financial_panel_titles):
+            raise ValueError("Grafana financial dashboard is missing required panels")
+
+        api_source = (ROOT / "workloads/hello-api/app/main.py").read_text(encoding="utf-8")
+        financial_source = (ROOT / "workloads/hello-api/app/financial.py").read_text(encoding="utf-8")
+        requirements = (ROOT / "workloads/hello-api/requirements.txt").read_text(encoding="utf-8")
+        if "/v1/market/kraken/ticker" not in api_source:
+            raise ValueError("FastAPI market-data endpoint is missing")
+        if "https://api.kraken.com/0/public/Ticker" not in financial_source:
+            raise ValueError("Kraken public ticker endpoint is missing")
+        if "httpx>=" not in requirements:
+            raise ValueError("The runtime image must install HTTPX")
 
         services = compose.get("services", {})
         required_services = {
@@ -138,7 +183,7 @@ def main() -> int:
         print(f"Observability validation failed: {exc}", file=sys.stderr)
         return 1
 
-    print("OpenTelemetry, SLO rules, Blackbox probes, Alertmanager, Mailpit, and Grafana dashboard are valid.")
+    print("OpenTelemetry, SLO rules, financial API metrics, and Grafana dashboards are valid.")
     return 0
 
 
