@@ -18,6 +18,10 @@ Compose is the default rapid feedback loop. Start kind only when validating Kube
 
 ## Local observability
 
+An optional Docker Compose profile instruments hello-api with OpenTelemetry and exports OTLP metrics and traces to a local Collector. The Collector exposes Prometheus metrics and forwards traces to Tempo. Prometheus scrapes the Collector and a Blackbox readiness probe. Recording rules calculate request rate, 5xx ratio, p95 latency, rolling 30-day availability, remaining error budget, and multi-window burn rate. Prometheus evaluates operational alerts and routes them to Alertmanager, which sends local notification emails to Mailpit. Grafana provisions an operations overview with SLO, error budget, golden signals, API process CPU/RAM, and Tempo traces. The sample availability objective is 99.9% over a rolling 30-day window.
+
+A local/test-only fault-injection route supports controlled 5xx demonstrations and is not registered in the production environment. CPU and memory gauges describe the hello-api process only, not the host or Kubernetes cluster.
+
 An optional Docker Compose profile instruments hello-api with OpenTelemetry and exports OTLP metrics and traces to a local Collector. The Collector exposes Prometheus metrics and forwards traces to Tempo. Prometheus scrapes the Collector, while Grafana provisions Prometheus and Tempo as data sources and loads the hello-api dashboard. The telemetry stack is opt-in and is not part of the default developer loop.
 
 ## Logical components
