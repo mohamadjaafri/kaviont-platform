@@ -17,6 +17,11 @@ workloadIdentity:
   keyVaultUrl: ""
   secretName: platform-demo-token
 
+marketData:
+  pollingEnabled: true
+  pollIntervalSeconds: 60
+  pair: XBTUSD
+
 localSecret:
   enabled: true
   secretName: hello-api-local

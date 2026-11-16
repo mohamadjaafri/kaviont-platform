@@ -16,13 +16,15 @@ Kaviont separates fast application iteration from Kubernetes integration testing
 
 Compose is the default rapid feedback loop. Start kind only when validating Kubernetes deployment and GitOps behavior. The local profile is a practical development environment, not an emulation of Azure services.
 
-## Local observability
+## Local observability and financial market data
 
-An optional Docker Compose profile instruments hello-api with OpenTelemetry and exports OTLP metrics and traces to a local Collector. The Collector exposes Prometheus metrics and forwards traces to Tempo. Prometheus scrapes the Collector and a Blackbox readiness probe. Recording rules calculate request rate, 5xx ratio, p95 latency, rolling 30-day availability, remaining error budget, and multi-window burn rate. Prometheus evaluates operational alerts and routes them to Alertmanager, which sends local notification emails to Mailpit. Grafana provisions an operations overview with SLO, error budget, golden signals, API process CPU/RAM, and Tempo traces. The sample availability objective is 99.9% over a rolling 30-day window.
+An optional Docker Compose profile instruments hello-api with OpenTelemetry and exports OTLP metrics and traces to a local Collector. The Collector exposes Prometheus metrics and forwards traces to Tempo. Prometheus scrapes the Collector and a Blackbox readiness probe. Recording rules calculate request rate, 5xx ratio, p95 latency, rolling 30-day availability, remaining error budget, and multi-window burn rate. Prometheus evaluates operational alerts and routes them to Alertmanager, which sends local notification emails to Mailpit. Grafana provisions operations and financial-data reliability dashboards.
+
+The FastAPI lifespan starts a Kraken public ticker poller. It retrieves the configured market pair immediately during startup and then refreshes it on a configurable interval (60 seconds by default). The ticker endpoint serves the latest successful in-memory snapshot rather than creating an outbound request for each client. Outbound requests emit OpenTelemetry client spans, a counter with provider/pair/outcome attributes, and a latency histogram. Provider failures retain the last successful snapshot; the cache is marked stale after two polling intervals. The poller does not call private Kraken endpoints or submit orders.
+
+Each API replica currently runs its own poller and stores its own in-memory snapshot. This is acceptable for the small reference profile and uses a conservative interval, but duplicates requests when scaled horizontally. A production multi-replica architecture should move polling to a dedicated singleton worker and distribute snapshots through shared storage or a streaming layer.
 
 A local/test-only fault-injection route supports controlled 5xx demonstrations and is not registered in the production environment. CPU and memory gauges describe the hello-api process only, not the host or Kubernetes cluster.
-
-An optional Docker Compose profile instruments hello-api with OpenTelemetry and exports OTLP metrics and traces to a local Collector. The Collector exposes Prometheus metrics and forwards traces to Tempo. Prometheus scrapes the Collector, while Grafana provisions Prometheus and Tempo as data sources and loads the hello-api dashboard. The telemetry stack is opt-in and is not part of the default developer loop.
 
 ## Logical components
 

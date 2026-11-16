@@ -4,7 +4,7 @@ replicaCount: 2
 
 image:
   repository: REPLACE_WITH_ACR_LOGIN_SERVER/hello-api
-  tag: "0.2.0"
+  tag: "0.7.0"
   pullPolicy: IfNotPresent
 
 serviceAccount:
@@ -16,3 +16,8 @@ workloadIdentity:
   clientId: "REPLACE_WITH_HELLO_API_CLIENT_ID"
   keyVaultUrl: "REPLACE_WITH_KEY_VAULT_URI"
   secretName: platform-demo-token
+
+marketData:
+  pollingEnabled: true
+  pollIntervalSeconds: 60
+  pair: XBTUSD

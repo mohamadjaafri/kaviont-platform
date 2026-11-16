@@ -7,6 +7,49 @@ from app.main import app
 client = TestClient(app)
 
 
+class ReadyPoller:
+    def get_snapshot(self):
+        return {
+            "provider": "kraken",
+            "pair": "XBTUSD",
+            "last_price": 65000.0,
+            "bid": 64999.0,
+            "ask": 65001.0,
+            "volume_24h": 123.4,
+            "high_24h": 66000.0,
+            "low_24h": 64000.0,
+            "retrieved_at": "2026-11-16T12:00:00+00:00",
+            "cache_age_seconds": 2.0,
+            "stale": False,
+            "poll_interval_seconds": 60.0,
+        }
+
+    def status(self):
+        return {
+            "provider": "kraken",
+            "pair": "XBTUSD",
+            "polling_enabled": True,
+            "poll_interval_seconds": 60.0,
+            "has_snapshot": True,
+            "cache_age_seconds": 2.0,
+            "stale": False,
+            "last_attempt_at": "2026-11-16T12:00:00+00:00",
+            "last_successful_update": "2026-11-16T12:00:00+00:00",
+            "last_error": None,
+            "running": True,
+        }
+
+
+class EmptyPoller:
+    def get_snapshot(self):
+        from app.market_poller import MarketDataNotReady
+
+        raise MarketDataNotReady
+
+    def status(self):
+        return {"polling_enabled": True, "has_snapshot": False, "running": True}
+
+
 def test_root_returns_service_metadata() -> None:
     response = client.get("/")
 
@@ -14,7 +57,7 @@ def test_root_returns_service_metadata() -> None:
     assert response.json() == {
         "service": "hello-api",
         "status": "running",
-        "version": "0.6.0",
+        "version": "0.7.0",
     }
 
 
@@ -30,6 +73,40 @@ def test_readiness_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ready"}
+
+
+def test_kraken_ticker_endpoint_returns_cached_snapshot(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "kraken_poller", ReadyPoller())
+    response = client.get("/v1/market/kraken/ticker")
+
+    assert response.status_code == 200
+    assert response.json()["provider"] == "kraken"
+    assert response.json()["pair"] == "XBTUSD"
+    assert response.json()["last_price"] == 65000.0
+    assert response.json()["cache_age_seconds"] == 2.0
+
+
+def test_kraken_ticker_endpoint_returns_503_before_first_success(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "kraken_poller", EmptyPoller())
+    response = client.get("/v1/market/kraken/ticker")
+
+    assert response.status_code == 503
+    assert "background poller is starting" in response.json()["detail"]
+
+
+def test_kraken_poller_status_endpoint(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "kraken_poller", ReadyPoller())
+    response = client.get("/v1/market/kraken/status")
+
+    assert response.status_code == 200
+    assert response.json()["polling_enabled"] is True
+    assert response.json()["pair"] == "XBTUSD"
 
 
 def test_api_docs_are_enabled_in_local_environment(monkeypatch) -> None:

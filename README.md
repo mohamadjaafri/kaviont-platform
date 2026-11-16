@@ -88,7 +88,11 @@ Start the optional telemetry and operations stack:
 
     make observability-up
 
-Open the provisioned **Kaviont - Operations Overview** dashboard in Grafana at http://127.0.0.1:3000 (local default: admin / admin). It includes the rolling 30-day availability SLO, remaining error budget, request rate, 5xx ratio, p95 latency, readiness probe, API process CPU/RAM, and Tempo traces.
+The API automatically fetches the configured Kraken ticker during startup and refreshes it every 60 seconds by default. It serves the last successful snapshot from memory, so reading the ticker endpoint does not trigger another upstream request. Check polling status at http://127.0.0.1:8080/v1/market/kraken/status and read the latest snapshot at http://127.0.0.1:8080/v1/market/kraken/ticker.
+
+Open the provisioned **Kaviont - Operations Overview** and **Kaviont - Financial Data Reliability** dashboards in Grafana at http://127.0.0.1:3000 (local default: admin / admin). It includes the rolling 30-day availability SLO, remaining error budget, request rate, 5xx ratio, p95 latency, readiness probe, API process CPU/RAM, and Tempo traces.
+
+Configure the polling interval with KRAKEN_POLL_INTERVAL_SECONDS, market pair with KRAKEN_MARKET_PAIR, or disable polling with KRAKEN_POLLING_ENABLED=false. Each API replica currently runs its own poller and in-memory cache; use a dedicated singleton worker and shared cache before scaling this into a multi-replica production data service.
 
 Operational alerts are evaluated by Prometheus and routed through Alertmanager. Mailpit catches notification emails locally at http://127.0.0.1:8025, without sending them externally. Prometheus is at http://127.0.0.1:9090 and Alertmanager is at http://127.0.0.1:9093.
 
