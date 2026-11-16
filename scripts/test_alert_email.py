@@ -17,7 +17,8 @@ from urllib.request import Request, urlopen
 ALERTMANAGER_URL = os.getenv("ALERTMANAGER_URL", "http://127.0.0.1:9093").rstrip("/")
 MAILPIT_URL = os.getenv("MAILPIT_URL", "http://127.0.0.1:8025").rstrip("/")
 EXPECTED_RECIPIENT = os.getenv("ALERT_EMAIL_TO", "platform-ops@local.test")
-TIMEOUT_SECONDS = max(15, int(os.getenv("ALERT_EMAIL_TIMEOUT_SECONDS", "45")))
+READY_TIMEOUT_SECONDS = max(20, int(os.getenv("ALERT_EMAIL_READY_TIMEOUT_SECONDS", "45")))
+DELIVERY_TIMEOUT_SECONDS = max(20, int(os.getenv("ALERT_EMAIL_TIMEOUT_SECONDS", "45")))
 
 
 def request_json(url: str, *, method: str = "GET", payload: object | None = None) -> object:
@@ -118,12 +119,13 @@ def main() -> int:
         "generatorURL": "https://github.com/mohamadjaafri/kaviont-platform",
     }
 
-    deadline = time.monotonic() + TIMEOUT_SECONDS
     try:
-        wait_until_ready(deadline)
+        ready_deadline = time.monotonic() + READY_TIMEOUT_SECONDS
+        wait_until_ready(ready_deadline)
         request_json(f"{ALERTMANAGER_URL}/api/v2/alerts", method="POST", payload=[alert])
 
-        while time.monotonic() < deadline:
+        delivery_deadline = time.monotonic() + DELIVERY_TIMEOUT_SECONDS
+        while time.monotonic() < delivery_deadline:
             message = find_delivered_message(marker)
             if message is not None:
                 actual_recipients = ", ".join(sorted(recipient_addresses(message)))
