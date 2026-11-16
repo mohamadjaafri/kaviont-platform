@@ -152,10 +152,17 @@ def main() -> int:
             raise ValueError("Grafana financial dashboard is missing required panels")
 
         api_source = (ROOT / "workloads/hello-api/app/main.py").read_text(encoding="utf-8")
+        poller_source = (ROOT / "workloads/hello-api/app/market_poller.py").read_text(encoding="utf-8")
         financial_source = (ROOT / "workloads/hello-api/app/financial.py").read_text(encoding="utf-8")
         requirements = (ROOT / "workloads/hello-api/requirements.txt").read_text(encoding="utf-8")
         if "/v1/market/kraken/ticker" not in api_source:
             raise ValueError("FastAPI market-data endpoint is missing")
+        if "/v1/market/kraken/status" not in api_source:
+            raise ValueError("FastAPI market-data status endpoint is missing")
+        if "lifespan=lifespan" not in api_source:
+            raise ValueError("FastAPI lifespan must manage the market-data poller")
+        if "KRAKEN_POLL_INTERVAL_SECONDS" not in poller_source:
+            raise ValueError("Market-data polling interval must be configurable")
         if "https://api.kraken.com/0/public/Ticker" not in financial_source:
             raise ValueError("Kraken public ticker endpoint is missing")
         if "httpx>=" not in requirements:
@@ -170,6 +177,11 @@ def main() -> int:
             service = services.get(name)
             if not service or "observability" not in service.get("profiles", []):
                 raise ValueError(f"{name} must be restricted to the observability profile")
+        api_environment = services["hello-api"].get("environment", {})
+        if api_environment.get("KRAKEN_POLLING_ENABLED") != "${KRAKEN_POLLING_ENABLED:-true}":
+            raise ValueError("Compose must enable automatic market-data polling by default")
+        if api_environment.get("KRAKEN_POLL_INTERVAL_SECONDS") != "${KRAKEN_POLL_INTERVAL_SECONDS:-60}":
+            raise ValueError("Compose market-data polling interval must default to 60 seconds")
         api_profiles = services["hello-api"].get("profiles", [])
         if "dev" not in api_profiles or "observability" not in api_profiles:
             raise ValueError("hello-api must support both dev and observability profiles")

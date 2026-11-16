@@ -47,26 +47,38 @@ The Grafana operations dashboard includes:
 
 Wait for the OTLP metric export and Prometheus scrape intervals, then refresh Grafana. New environments need time to accumulate a 30-day history; the SLO panel uses the data currently retained.
 
-## Retrieve real financial market data
+## Automatically retrieve real financial market data
 
-The local API can fetch a live ticker snapshot from Kraken's public REST API. The public market-data endpoint does not require a Kraken account or API key. Kaviont calls it only when this route is requested; there is no background polling and no automatic retry loop.
+The API starts a background poller as part of the FastAPI lifespan. It fetches the configured pair immediately during startup and then repeats the request every 60 seconds by default. The default pair is XBTUSD (Bitcoin/USD). No Kraken account or API key is required.
+
+Check the poller's status:
+
+    curl -sS http://127.0.0.1:8080/v1/market/kraken/status
+
+The status endpoint reports whether polling is enabled, whether a snapshot exists, the last successful update, cache age, and whether the cached value is stale.
+
+Read the cached ticker snapshot:
 
     curl -sS http://127.0.0.1:8080/v1/market/kraken/ticker
 
-The default pair is XBTUSD (Bitcoin/USD). You can request another pair, for example:
+The ticker endpoint serves the latest successful in-memory snapshot. It does not make another request to Kraken. The response includes last price, bid, ask, 24-hour volume, high, low, retrieval time, cache age, and a stale flag. If the provider is unavailable during a refresh, the poller retains the last good snapshot and retries at the next interval. Before the first successful fetch, the ticker endpoint returns HTTP 503.
 
-    curl -sS "http://127.0.0.1:8080/v1/market/kraken/ticker?pair=XBTEUR"
+Configure the poller using environment variables:
 
-The normalized response contains the last traded price, best bid and ask, 24-hour volume, high, low, and the time Kaviont retrieved the snapshot. retrieved_at is the fetch time, not an exchange event timestamp. The integration reads public market data only; it does not create orders or access private account endpoints.
+- KRAKEN_POLLING_ENABLED: true or false (default true).
+- KRAKEN_POLL_INTERVAL_SECONDS: polling interval in seconds (default 60; minimum 1).
+- KRAKEN_MARKET_PAIR: Kraken market pair (default XBTUSD).
+
+Docker Compose reads optional overrides from the shell environment. In Helm deployments, configure the marketData values in the chart. Every running API replica has its own poller and in-memory cache, so each replica polls once per interval. A future multi-replica production design can move polling into a dedicated singleton worker and distribute snapshots through shared storage.
 
 Each successful or failed upstream call emits:
-- A kraken.public_ticker child span under the incoming FastAPI request trace.
-- financial.api.requests counter data with provider, pair, and outcome attributes.
-- financial.api.request.duration histogram data for latency.
+- A kraken.public_ticker span in Tempo.
+- A financial.api.requests counter with provider, pair, and outcome attributes.
+- A financial.api.request.duration histogram for external latency.
 
-Open Grafana's **Kaviont - Financial Data Reliability** dashboard. It shows external request rate, provider error ratio, p95 latency, and request/latency trends by market pair. The dashboard stays empty until the market-data route has been called and telemetry has been scraped. In Tempo, filter for service hello-api and inspect the kraken.public_ticker span.
+Open Grafana's **Kaviont - Financial Data Reliability** dashboard. It shows external request rate, provider error ratio, p95 latency, and request/latency trends by market pair. The dashboard populates automatically once the startup poll succeeds and telemetry has been scraped. In Tempo, filter for service hello-api and inspect the kraken.public_ticker span.
 
-Use a modest request rate and follow Kraken's public API usage limits. A provider failure is exposed as HTTP 502, and an upstream timeout is exposed as HTTP 504. The API response intentionally hides provider internals.
+Kraken's public Spot REST endpoints are rate limited by IP. Kraken states that a frequency of one request per second or less remains within public limits. The 60-second default interval is deliberately conservative. Avoid setting an unnecessarily short interval.
 
 ## Trigger a controlled 5xx alert
 
