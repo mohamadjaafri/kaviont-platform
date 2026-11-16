@@ -161,6 +161,16 @@ def main() -> int:
             raise ValueError("FastAPI market-data endpoint is missing")
         if "/v1/market/kraken/status" not in api_source:
             raise ValueError("FastAPI market-data status endpoint is missing")
+        for endpoint in (
+            "/v1/market/kraken/tickers",
+            "/v1/market/kraken/history",
+            "/v1/market/kraken/summary",
+        ):
+            if endpoint not in api_source:
+                raise ValueError(f"FastAPI market-data endpoint is missing: {endpoint}")
+        for method in ("latest_tickers", "historical_ticker", "market_summary"):
+            if f"def {method}(" not in repository_source:
+                raise ValueError(f"PostgreSQL repository method is missing: {method}")
         if "KrakenTickerPoller" in api_source or "fetch_kraken_ticker" in api_source:
             raise ValueError("The API must not poll the external market-data provider")
         if "KRAKEN_POLL_INTERVAL_SECONDS" not in worker_source:

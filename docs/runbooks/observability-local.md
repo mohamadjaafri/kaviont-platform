@@ -82,6 +82,28 @@ The v0.8 Helm chart contains an optional singleton worker Deployment and reads D
 
 Kraken's public Spot REST endpoints are rate limited by IP. The 60-second default interval is deliberately conservative. Avoid setting an unnecessarily short interval.
 
+## Historical market-data API
+
+The v0.9 API exposes the historical ticker snapshots already collected by the worker. It does not fetch additional data from Kraken when a client requests history.
+
+List the latest stored snapshot for each pair:
+
+    curl -sS http://127.0.0.1:8080/v1/market/kraken/tickers | python3 -m json.tool
+
+Read a 24-hour history for XBTUSD:
+
+    curl -sS "http://127.0.0.1:8080/v1/market/kraken/history?pair=XBTUSD&range=24h&limit=500" | python3 -m json.tool
+
+Supported ranges are 1h, 24h, and 7d. The limit accepts 2 to 2,000 points and defaults to 500. If the selected period contains more records than the limit, PostgreSQL distributes the returned points across the complete time window. Results stay chronological and include the total number of stored observations and whether downsampling occurred.
+
+Read the calculated market summary:
+
+    curl -sS "http://127.0.0.1:8080/v1/market/kraken/summary?pair=XBTUSD&range=24h" | python3 -m json.tool
+
+The summary contains the first and latest recorded prices, absolute and percentage change between those observations, minimum and maximum observed last price, average last price, sample count, and first/last fetch timestamps. High, low, and average are calculated from Kaviont's stored last-price observations in the selected window, not exchange-provided OHLC candles. Price changes compare the first and last observations actually stored within the selected window. They are not a comparison with an exact candle open at the window boundary.
+
+When a pair has no stored observations in the selected range, the history endpoint returns an empty data array and the summary returns a sample_count of zero with null price statistics. An unsupported range, invalid pair, or limit outside the supported bounds returns HTTP 422.
+
 ## Trigger a controlled 5xx alert
 
 The API exposes /__test__/error only when KAVIONT_ENV is local or test. The Compose observability profile sets KAVIONT_ENV=local. The endpoint does not exist in the production configuration.

@@ -247,7 +247,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Provider:** Kraken public REST market-data API. No API key or account is required.\n\n**Automatic polling:** The API fetches the configured pair immediately on startup and refreshes it every 60 seconds by default. The ticker route returns the in-memory cached snapshot and does not make an upstream request.\n\n**API routes:** GET /v1/market/kraken/ticker returns the latest snapshot; GET /v1/market/kraken/status shows polling and cache freshness. Configure KRAKEN_MARKET_PAIR, KRAKEN_POLL_INTERVAL_SECONDS, and KRAKEN_POLLING_ENABLED.\n\n**Trace:** Find the kraken.public_ticker span in Tempo under service hello-api. retrieved_at is when Kaviont fetched the snapshot, not an exchange event timestamp. The integration reads public market data only and does not submit orders."
+        "content": "**Provider:** Kraken public REST market-data API. No API key or account is required.\\n\\n**Ingestion:** A dedicated market-data worker polls the configured pair every 60 seconds by default. It persists successful snapshots and worker status to PostgreSQL. A database advisory lock prevents overlapping pollers.\\n\\n**API routes:** GET /v1/market/kraken/tickers lists tracked pairs; GET /v1/market/kraken/ticker returns the configured pair; GET /v1/market/kraken/history?pair=XBTUSD&range=24h&limit=500 returns a chronological, downsampled series; GET /v1/market/kraken/summary?pair=XBTUSD&range=24h calculates price movement and range statistics; GET /v1/market/kraken/status reports worker health. Supported ranges are 1h, 24h, and 7d.\\n\\n**Trace:** Find the kraken.public_ticker span in Tempo under service market-data-worker. fetched_at is when Kaviont retrieved the snapshot, not an exchange event timestamp. The integration reads public market data only and does not submit orders."
       }
     }
   ],
@@ -265,5 +265,5 @@
   },
   "title": "Kaviont - Financial Data Reliability",
   "uid": "kaviont-financial-data",
-  "version": 1
+  "version": 2
 }

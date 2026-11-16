@@ -4,7 +4,7 @@ replicaCount: 2
 
 image:
   repository: REPLACE_WITH_ACR_LOGIN_SERVER/hello-api
-  tag: "0.8.0"
+  tag: "0.9.0"
   pullPolicy: IfNotPresent
 
 serviceAccount:
