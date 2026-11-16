@@ -172,9 +172,9 @@ class MarketDataRepository:
                 SET worker_status = 'stopped',
                     worker_instance = %s,
                     heartbeat_at = now()
-                WHERE provider = 'kraken' AND pair = %s
+                WHERE provider = 'kraken' AND pair = %s AND worker_instance = %s
                 """,
-                (worker_instance, pair),
+                (worker_instance, pair, worker_instance),
             )
 
     def latest_snapshot(

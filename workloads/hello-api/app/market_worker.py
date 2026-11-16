@@ -143,7 +143,8 @@ async def run_worker() -> None:
             repository.mark_stopped(pair, worker_instance)
         except psycopg.Error:
             logger.exception("Could not mark market-data worker as stopped")
-        repository.release_worker_lock(lock_connection)
+        if lock_connection is not None:
+            repository.release_worker_lock(lock_connection)
         logger.info("Market-data worker stopped")
 
 
