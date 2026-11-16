@@ -26,6 +26,7 @@ Kaviont is an independent engineering reference project for building a repeatabl
 - Single-node kind profile with a separate restricted local Argo CD Application.
 - Multi-stage container build with BuildKit dependency caching and distinct runtime/test targets.
 - Optional local operations stack with OpenTelemetry, Prometheus, Tempo, Grafana, Blackbox Exporter, Alertmanager, and Mailpit.
+- Dedicated Kraken market-data worker with PostgreSQL persistence, a singleton advisory lock, latest-snapshot API reads, and historical ticker storage.
 - Rolling 30-day 99.9% request availability objective, error-budget recording rules, golden-signal alerts, and local email notification tests.
 - GitHub Actions checks for both Terraform roots, Helm, Python tests, container build, Prometheus rules, Alertmanager config, and GitOps manifests.
 
@@ -51,7 +52,8 @@ Detailed design: docs/architecture.md, ADR 0001-0004, docs/security-and-cost.md,
 - charts/hello-api: Helm chart and GitOps values template
 - gitops/argocd: Azure and local AppProjects, Applications, and Kustomize entry points
 - kind: single-node local Kubernetes cluster configuration
-- compose.yaml: containerized API development, test, and operations profiles
+- compose.yaml: containerized API, market-data worker, PostgreSQL, test, and operations profiles
+- db/init: initial PostgreSQL schema for ticker history and worker status
 - observability: Collector, Prometheus, SLO rules, Blackbox Exporter, Alertmanager, Tempo, and Grafana configuration
 - scripts: Terraform output renderer, Argo CD bootstrap, local cluster lifecycle, and GitOps validator
 - infrastructure/terraform/bootstrap/state: remote state foundation
@@ -88,11 +90,11 @@ Start the optional telemetry and operations stack:
 
     make observability-up
 
-The API automatically fetches the configured Kraken ticker during startup and refreshes it every 60 seconds by default. It serves the last successful snapshot from memory, so reading the ticker endpoint does not trigger another upstream request. Check polling status at http://127.0.0.1:8080/v1/market/kraken/status and read the latest snapshot at http://127.0.0.1:8080/v1/market/kraken/ticker.
+The dedicated market-data worker fetches the configured Kraken ticker immediately and refreshes it every 60 seconds by default. It writes each successful snapshot and its worker state to PostgreSQL. The API reads the latest persisted snapshot, so API replicas do not poll Kraken and share the same data. Check worker status at http://127.0.0.1:8080/v1/market/kraken/status and read the latest snapshot at http://127.0.0.1:8080/v1/market/kraken/ticker.
 
 Open the provisioned **Kaviont - Operations Overview** and **Kaviont - Financial Data Reliability** dashboards in Grafana at http://127.0.0.1:3000 (local default: admin / admin). It includes the rolling 30-day availability SLO, remaining error budget, request rate, 5xx ratio, p95 latency, readiness probe, API process CPU/RAM, and Tempo traces.
 
-Configure the polling interval with KRAKEN_POLL_INTERVAL_SECONDS, market pair with KRAKEN_MARKET_PAIR, or disable polling with KRAKEN_POLLING_ENABLED=false. Each API replica currently runs its own poller and in-memory cache; use a dedicated singleton worker and shared cache before scaling this into a multi-replica production data service.
+Configure the polling interval with KRAKEN_POLL_INTERVAL_SECONDS and market pair with KRAKEN_MARKET_PAIR. The worker holds a PostgreSQL session-level advisory lock, preventing overlapping worker instances from polling at the same time. PostgreSQL keeps the ticker history in the named market-data-db volume. The local Compose credentials are development-only.
 
 Operational alerts are evaluated by Prometheus and routed through Alertmanager. Mailpit catches notification emails locally at http://127.0.0.1:8025, without sending them externally. Prometheus is at http://127.0.0.1:9090 and Alertmanager is at http://127.0.0.1:9093.
 

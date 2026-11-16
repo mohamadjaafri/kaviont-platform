@@ -18,9 +18,13 @@ workloadIdentity:
   secretName: platform-demo-token
 
 marketData:
-  pollingEnabled: true
+  enabled: false
   pollIntervalSeconds: 60
   pair: XBTUSD
+  databaseUrlSecretName: market-data-database
+  databaseUrlSecretKey: DATABASE_URL
+  worker:
+    enabled: false
 
 localSecret:
   enabled: true

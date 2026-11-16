@@ -4,7 +4,9 @@ Kaviont's local operations profile is an optional Docker Compose stack. It demon
 
 ## Components
 
-- hello-api: FastAPI service with OpenTelemetry request metrics and traces. It also exports process CPU and resident-memory gauges.
+- hello-api: stateless FastAPI service. It reads the latest market-data snapshot from PostgreSQL and exports request metrics, traces, CPU, and memory gauges.
+- market-data-worker: separate polling process with its own OpenTelemetry service identity. It exports outbound Kraken spans and persists snapshots and worker state.
+- PostgreSQL: persistent local storage for ticker history and worker heartbeats. A session-level advisory lock prevents overlapping workers.
 - OpenTelemetry Collector: receives OTLP over gRPC/HTTP, batches telemetry, exposes Prometheus metrics, and forwards traces to Tempo.
 - Prometheus: scrapes the Collector and Blackbox Exporter, retains up to 30 days of local metrics, evaluates SLO recording rules, and fires alerts.
 - Blackbox Exporter: probes the API readiness endpoint over HTTP.
@@ -47,38 +49,38 @@ The Grafana operations dashboard includes:
 
 Wait for the OTLP metric export and Prometheus scrape intervals, then refresh Grafana. New environments need time to accumulate a 30-day history; the SLO panel uses the data currently retained.
 
-## Automatically retrieve real financial market data
+## Automatically retrieve and persist real financial market data
 
-The API starts a background poller as part of the FastAPI lifespan. It fetches the configured pair immediately during startup and then repeats the request every 60 seconds by default. The default pair is XBTUSD (Bitcoin/USD). No Kraken account or API key is required.
+The market-data worker runs as a dedicated Compose service, separate from FastAPI. It connects to PostgreSQL, acquires a session-level advisory lock, fetches the configured Kraken public ticker immediately, and repeats the request every 60 seconds by default. No Kraken account or API key is required.
 
-Check the poller's status:
+Check the worker's persisted status:
 
     curl -sS http://127.0.0.1:8080/v1/market/kraken/status
 
-The status endpoint reports whether polling is enabled, whether a snapshot exists, the last successful update, cache age, and whether the cached value is stale.
+The status endpoint reports whether the worker heartbeat is healthy, whether a successful snapshot exists, the last attempt, the last successful update, the last error category, and the worker instance identifier.
 
-Read the cached ticker snapshot:
+Read the latest database-backed ticker snapshot:
 
     curl -sS http://127.0.0.1:8080/v1/market/kraken/ticker
 
-The ticker endpoint serves the latest successful in-memory snapshot. It does not make another request to Kraken. The response includes last price, bid, ask, 24-hour volume, high, low, retrieval time, cache age, and a stale flag. If the provider is unavailable during a refresh, the poller retains the last good snapshot and retries at the next interval. Before the first successful fetch, the ticker endpoint returns HTTP 503.
+The API reads the latest persisted row. It does not contact Kraken. The response includes last price, bid, ask, 24-hour volume, high, low, Kaviont fetch time, cache age, and a stale flag. The fetch timestamp is the time Kaviont retrieved the response, not an exchange-provided event timestamp. If Kraken is unavailable during a refresh, the worker retains the last good snapshot and records a safe error category. Before the first successful fetch, the endpoint returns HTTP 503.
 
-Configure the poller using environment variables:
+PostgreSQL uses a named Docker volume called market-data-db, so ticker history survives normal container restarts and `make observability-down`. The schema is initialized from db/init/001_market_data.sql when PostgreSQL creates a new data directory. Removing the volume with `docker compose --profile observability down --volumes` deletes the stored market history as well.
 
-- KRAKEN_POLLING_ENABLED: true or false (default true).
-- KRAKEN_POLL_INTERVAL_SECONDS: polling interval in seconds (default 60; minimum 1).
-- KRAKEN_MARKET_PAIR: Kraken market pair (default XBTUSD).
+Configure the interval with KRAKEN_POLL_INTERVAL_SECONDS (default 60; minimum 1) and the pair with KRAKEN_MARKET_PAIR (default XBTUSD). Set POSTGRES_PASSWORD to override the local development database password. Do not reuse the sample default outside a local environment.
 
-Docker Compose reads optional overrides from the shell environment. In Helm deployments, configure the marketData values in the chart. Every running API replica has its own poller and in-memory cache, so each replica polls once per interval. A future multi-replica production design can move polling into a dedicated singleton worker and distribute snapshots through shared storage.
+A second worker process cannot poll concurrently while the first holds the PostgreSQL advisory lock. During restart or deployment overlap, the second worker waits and retries lock acquisition. PostgreSQL is shared by every API replica, so scaling hello-api does not multiply external Kraken traffic.
 
 Each successful or failed upstream call emits:
-- A kraken.public_ticker span in Tempo.
+- A kraken.public_ticker span in Tempo with service.name=market-data-worker.
 - A financial.api.requests counter with provider, pair, and outcome attributes.
 - A financial.api.request.duration histogram for external latency.
 
-Open Grafana's **Kaviont - Financial Data Reliability** dashboard. It shows external request rate, provider error ratio, p95 latency, and request/latency trends by market pair. The dashboard populates automatically once the startup poll succeeds and telemetry has been scraped. In Tempo, filter for service hello-api and inspect the kraken.public_ticker span.
+Open Grafana's **Kaviont - Financial Data Reliability** dashboard. It shows external request rate, provider error ratio, p95 latency, and request/latency trends by market pair. In Tempo, filter for service market-data-worker and inspect the kraken.public_ticker span.
 
-Kraken's public Spot REST endpoints are rate limited by IP. Kraken states that a frequency of one request per second or less remains within public limits. The 60-second default interval is deliberately conservative. Avoid setting an unnecessarily short interval.
+The v0.8 Helm chart contains an optional singleton worker Deployment and reads DATABASE_URL from an existing Kubernetes Secret. Both marketData.enabled and marketData.worker.enabled remain false in the AKS values template until an externally managed PostgreSQL database and its schema are available. The Terraform environment does not create or incur costs for a database in this release.
+
+Kraken's public Spot REST endpoints are rate limited by IP. The 60-second default interval is deliberately conservative. Avoid setting an unnecessarily short interval.
 
 ## Trigger a controlled 5xx alert
 

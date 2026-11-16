@@ -40,10 +40,15 @@ spec:
           env:
             - name: KAVIONT_ENV
               value: {{ .Values.environment | default "production" | quote }}
-            - name: KRAKEN_POLLING_ENABLED
-              value: {{ .Values.marketData.pollingEnabled | quote }}
             - name: KRAKEN_POLL_INTERVAL_SECONDS
               value: {{ .Values.marketData.pollIntervalSeconds | quote }}
+            {{- if .Values.marketData.enabled }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "marketData.databaseUrlSecretName is required when marketData.enabled is true" .Values.marketData.databaseUrlSecretName | quote }}
+                  key: {{ .Values.marketData.databaseUrlSecretKey | quote }}
+            {{- end }}
             - name: KRAKEN_MARKET_PAIR
               value: {{ .Values.marketData.pair | quote }}
             - name: KEY_VAULT_URL

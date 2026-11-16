@@ -104,10 +104,11 @@ def main() -> int:
         )
 
         require(azure_values.get("workloadIdentity", {}).get("enabled") is True, "Azure GitOps values must enable Workload Identity.")
-        require(azure_values.get("marketData", {}).get("pollingEnabled") is True, "Azure GitOps values must enable automatic market-data polling.")
+        require(azure_values.get("marketData", {}).get("enabled") is False, "Azure GitOps market data must remain disabled until an AKS database is configured.")
+        require(azure_values.get("marketData", {}).get("worker", {}).get("enabled") is False, "Azure GitOps worker must remain disabled until an AKS database is configured.")
         require(azure_values.get("marketData", {}).get("pollIntervalSeconds") == 60, "Azure GitOps market-data polling must default to 60 seconds.")
         require(azure_values.get("marketData", {}).get("pair") == "XBTUSD", "Azure GitOps market-data pair must default to XBTUSD.")
-        require(azure_values.get("image", {}).get("tag") == "0.7.0", "Azure GitOps values must pin the sample image tag.")
+        require(azure_values.get("image", {}).get("tag") == "0.8.0", "Azure GitOps values must pin the sample image tag.")
         require(
             str(azure_values.get("image", {}).get("repository", "")).startswith("REPLACE_WITH_ACR_LOGIN_SERVER/"),
             "Azure GitOps values template must use the ACR output marker.",
@@ -132,7 +133,8 @@ def main() -> int:
         require(local_values.get("image", {}).get("pullPolicy") == "Never", "Local values must never pull the image from a registry.")
         require(local_values.get("workloadIdentity", {}).get("enabled") is False, "Local values must disable Azure Workload Identity.")
         require(local_values.get("localSecret", {}).get("enabled") is True, "Local values must use the local-only test secret.")
-        require(local_values.get("marketData", {}).get("pollingEnabled") is True, "Local values must enable automatic market-data polling.")
+        require(local_values.get("marketData", {}).get("enabled") is False, "Local kind profile must not start market-data without a shared database.")
+        require(local_values.get("marketData", {}).get("worker", {}).get("enabled") is False, "Local kind profile must not deploy a worker without a shared database.")
         require(local_values.get("marketData", {}).get("pollIntervalSeconds") == 60, "Local market-data polling must default to 60 seconds.")
         require(local_values.get("marketData", {}).get("pair") == "XBTUSD", "Local market-data pair must default to XBTUSD.")
         require(local_values.get("autoscaling", {}).get("enabled") is False, "Local profile must not require metrics-server.")

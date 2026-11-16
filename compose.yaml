@@ -21,7 +21,7 @@ services:
       KEY_VAULT_SECRET_NAME: platform-demo-token
       LOCAL_DEMO_SECRET: ${LOCAL_DEMO_SECRET:-}
       KAVIONT_ENV: local
-      KRAKEN_POLLING_ENABLED: ${KRAKEN_POLLING_ENABLED:-true}
+      DATABASE_URL: postgresql://kaviont:${POSTGRES_PASSWORD:-kaviont-local-only}@postgres:5432/kaviont
       KRAKEN_POLL_INTERVAL_SECONDS: ${KRAKEN_POLL_INTERVAL_SECONDS:-60}
       KRAKEN_MARKET_PAIR: ${KRAKEN_MARKET_PAIR:-XBTUSD}
       OTEL_SERVICE_NAME: hello-api
@@ -34,6 +34,9 @@ services:
         source: ./workloads/hello-api/app
         target: /app/app
         read_only: true
+    depends_on:
+      postgres:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp
@@ -52,6 +55,60 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+
+  market-data-worker:
+    profiles: ["dev", "observability"]
+    image: kaviont/market-data-worker:local
+    build:
+      context: ./workloads/hello-api
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "-m", "app.market_worker"]
+    environment:
+      DATABASE_URL: postgresql://kaviont:${POSTGRES_PASSWORD:-kaviont-local-only}@postgres:5432/kaviont
+      KAVIONT_ENV: local
+      KRAKEN_POLL_INTERVAL_SECONDS: ${KRAKEN_POLL_INTERVAL_SECONDS:-60}
+      KRAKEN_MARKET_PAIR: ${KRAKEN_MARKET_PAIR:-XBTUSD}
+      OTEL_SERVICE_NAME: market-data-worker
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+    volumes:
+      - type: bind
+        source: ./workloads/hello-api/app
+        target: /app/app
+        read_only: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  postgres:
+    profiles: ["dev", "observability"]
+    image: postgres:17.5-alpine
+    environment:
+      POSTGRES_USER: kaviont
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kaviont-local-only}
+      POSTGRES_DB: kaviont
+    volumes:
+      - market-data-db:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kaviont -d kaviont"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   hello-api-test:
     profiles: ["test"]
@@ -165,6 +222,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  market-data-db:
   prometheus-data:
   tempo-data:
   grafana-data:

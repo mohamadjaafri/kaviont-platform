@@ -43,7 +43,7 @@ dev-up:
 	docker compose --profile dev up --build -d
 
 dev-logs:
-	docker compose --profile dev logs -f hello-api
+	docker compose --profile dev logs -f hello-api market-data-worker postgres
 
 dev-down:
 	docker compose --profile dev down --remove-orphans
