@@ -7,6 +7,49 @@ from app.main import app
 client = TestClient(app)
 
 
+class ReadyPoller:
+    def get_snapshot(self):
+        return {
+            "provider": "kraken",
+            "pair": "XBTUSD",
+            "last_price": 65000.0,
+            "bid": 64999.0,
+            "ask": 65001.0,
+            "volume_24h": 123.4,
+            "high_24h": 66000.0,
+            "low_24h": 64000.0,
+            "retrieved_at": "2026-11-16T12:00:00+00:00",
+            "cache_age_seconds": 2.0,
+            "stale": False,
+            "poll_interval_seconds": 60.0,
+        }
+
+    def status(self):
+        return {
+            "provider": "kraken",
+            "pair": "XBTUSD",
+            "polling_enabled": True,
+            "poll_interval_seconds": 60.0,
+            "has_snapshot": True,
+            "cache_age_seconds": 2.0,
+            "stale": False,
+            "last_attempt_at": "2026-11-16T12:00:00+00:00",
+            "last_successful_update": "2026-11-16T12:00:00+00:00",
+            "last_error": None,
+            "running": True,
+        }
+
+
+class EmptyPoller:
+    def get_snapshot(self):
+        from app.market_poller import MarketDataNotReady
+
+        raise MarketDataNotReady
+
+    def status(self):
+        return {"polling_enabled": True, "has_snapshot": False, "running": True}
+
+
 def test_root_returns_service_metadata() -> None:
     response = client.get("/")
 
@@ -32,75 +75,38 @@ def test_readiness_endpoint() -> None:
     assert response.json() == {"status": "ready"}
 
 
-def test_kraken_ticker_endpoint_returns_market_data(monkeypatch) -> None:
-    async def fake_fetch(pair: str) -> dict[str, object]:
-        assert pair == "XBTUSD"
-        return {
-            "provider": "kraken",
-            "pair": pair,
-            "last_price": 65000.0,
-            "bid": 64999.0,
-            "ask": 65001.0,
-            "volume_24h": 123.4,
-            "high_24h": 66000.0,
-            "low_24h": 64000.0,
-            "retrieved_at": "2026-11-16T12:00:00+00:00",
-        }
+def test_kraken_ticker_endpoint_returns_cached_snapshot(monkeypatch) -> None:
+    import app.main as main_module
 
-    monkeypatch.setattr("app.main.fetch_kraken_ticker", fake_fetch)
+    monkeypatch.setattr(main_module, "kraken_poller", ReadyPoller())
     response = client.get("/v1/market/kraken/ticker")
 
     assert response.status_code == 200
     assert response.json()["provider"] == "kraken"
     assert response.json()["pair"] == "XBTUSD"
     assert response.json()["last_price"] == 65000.0
+    assert response.json()["cache_age_seconds"] == 2.0
 
 
-def test_kraken_ticker_endpoint_normalizes_pair(monkeypatch) -> None:
-    async def fake_fetch(pair: str) -> dict[str, object]:
-        return {"provider": "kraken", "pair": pair}
+def test_kraken_ticker_endpoint_returns_503_before_first_success(monkeypatch) -> None:
+    import app.main as main_module
 
-    monkeypatch.setattr("app.main.fetch_kraken_ticker", fake_fetch)
-    response = client.get("/v1/market/kraken/ticker?pair=xbteur")
+    monkeypatch.setattr(main_module, "kraken_poller", EmptyPoller())
+    response = client.get("/v1/market/kraken/ticker")
+
+    assert response.status_code == 503
+    assert "background poller is starting" in response.json()["detail"]
+
+
+def test_kraken_poller_status_endpoint(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "kraken_poller", ReadyPoller())
+    response = client.get("/v1/market/kraken/status")
 
     assert response.status_code == 200
-    assert response.json()["pair"] == "XBTEUR"
-
-
-def test_kraken_ticker_endpoint_rejects_invalid_pair() -> None:
-    response = client.get("/v1/market/kraken/ticker?pair=BTC/USD")
-
-    assert response.status_code == 422
-
-
-def test_kraken_ticker_endpoint_maps_provider_failure(monkeypatch) -> None:
-    from app.financial import FinancialDataProviderError
-
-    async def fake_fetch(_pair: str) -> dict[str, object]:
-        raise FinancialDataProviderError("internal provider detail")
-
-    monkeypatch.setattr("app.main.fetch_kraken_ticker", fake_fetch)
-    response = client.get("/v1/market/kraken/ticker")
-
-    assert response.status_code == 502
-    assert response.json() == {
-        "detail": "Market data provider is unavailable or returned invalid data"
-    }
-    assert "internal provider detail" not in response.text
-
-
-def test_kraken_ticker_endpoint_maps_timeout(monkeypatch) -> None:
-    from app.financial import FinancialDataTimeoutError
-
-    async def fake_fetch(_pair: str) -> dict[str, object]:
-        raise FinancialDataTimeoutError("internal timeout detail")
-
-    monkeypatch.setattr("app.main.fetch_kraken_ticker", fake_fetch)
-    response = client.get("/v1/market/kraken/ticker")
-
-    assert response.status_code == 504
-    assert response.json() == {"detail": "Market data provider timed out"}
-    assert "internal timeout detail" not in response.text
+    assert response.json()["polling_enabled"] is True
+    assert response.json()["pair"] == "XBTUSD"
 
 
 def test_api_docs_are_enabled_in_local_environment(monkeypatch) -> None:

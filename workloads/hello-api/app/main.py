@@ -1,18 +1,28 @@
 import os
-from typing import Annotated
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Request
 
-from app.financial import (
-    FinancialDataProviderError,
-    FinancialDataTimeoutError,
-    fetch_kraken_ticker,
-)
+from app.market_poller import KrakenTickerPoller, MarketDataNotReady
 from app.observability import configure_observability
 from app.secrets import secret_is_configured
 
 environment = os.getenv("KAVIONT_ENV", "production").strip().lower()
 enable_api_docs = environment in {"local", "test"}
+
+kraken_poller = KrakenTickerPoller.from_environment()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Start automatic market-data polling and stop it during shutdown."""
+    await kraken_poller.start()
+    try:
+        yield
+    finally:
+        await kraken_poller.stop()
+
 
 app = FastAPI(
     title="Kaviont Hello API",
@@ -20,9 +30,14 @@ app = FastAPI(
     docs_url="/docs" if enable_api_docs else None,
     redoc_url="/redoc" if enable_api_docs else None,
     openapi_url="/openapi.json" if enable_api_docs else None,
+    lifespan=lifespan,
 )
 
 configure_observability(app)
+
+
+def get_poller(request: Request) -> KrakenTickerPoller:
+    return getattr(request.app.state, "kraken_poller", kraken_poller)
 
 
 @app.get("/", tags=["service"])
@@ -52,30 +67,21 @@ if enable_api_docs:
 
 
 @app.get("/v1/market/kraken/ticker", tags=["market-data"])
-async def kraken_ticker(
-    pair: Annotated[
-        str,
-        Query(
-            min_length=5,
-            max_length=12,
-            pattern=r"^[A-Za-z0-9]+$",
-            description="Kraken REST market pair, for example XBTUSD or XBTEUR.",
-        ),
-    ] = "XBTUSD",
-) -> dict[str, object]:
-    """Return a normalized ticker snapshot from Kraken's public market-data API."""
+def kraken_ticker(request: Request) -> dict[str, object]:
+    """Return the latest automatically refreshed Kraken ticker snapshot."""
     try:
-        return await fetch_kraken_ticker(pair.upper())
-    except FinancialDataTimeoutError as exc:
+        return get_poller(request).get_snapshot()
+    except MarketDataNotReady as exc:
         raise HTTPException(
-            status_code=504,
-            detail="Market data provider timed out",
+            status_code=503,
+            detail="Market data is not available yet; the background poller is starting",
         ) from exc
-    except FinancialDataProviderError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="Market data provider is unavailable or returned invalid data",
-        ) from exc
+
+
+@app.get("/v1/market/kraken/status", tags=["market-data"])
+def kraken_poller_status(request: Request) -> dict[str, object]:
+    """Report background polling and cached market-data freshness."""
+    return get_poller(request).status()
 
 
 @app.get("/v1/secret-status", tags=["configuration"])
