@@ -152,17 +152,25 @@ def main() -> int:
             raise ValueError("Grafana financial dashboard is missing required panels")
 
         api_source = (ROOT / "workloads/hello-api/app/main.py").read_text(encoding="utf-8")
-        poller_source = (ROOT / "workloads/hello-api/app/market_poller.py").read_text(encoding="utf-8")
+        worker_source = (ROOT / "workloads/hello-api/app/market_worker.py").read_text(encoding="utf-8")
+        repository_source = (ROOT / "workloads/hello-api/app/market_repository.py").read_text(encoding="utf-8")
+        schema_source = (ROOT / "db/init/001_market_data.sql").read_text(encoding="utf-8")
         financial_source = (ROOT / "workloads/hello-api/app/financial.py").read_text(encoding="utf-8")
         requirements = (ROOT / "workloads/hello-api/requirements.txt").read_text(encoding="utf-8")
         if "/v1/market/kraken/ticker" not in api_source:
             raise ValueError("FastAPI market-data endpoint is missing")
         if "/v1/market/kraken/status" not in api_source:
             raise ValueError("FastAPI market-data status endpoint is missing")
-        if "lifespan=lifespan" not in api_source:
-            raise ValueError("FastAPI lifespan must manage the market-data poller")
-        if "KRAKEN_POLL_INTERVAL_SECONDS" not in poller_source:
-            raise ValueError("Market-data polling interval must be configurable")
+        if "KrakenTickerPoller" in api_source or "fetch_kraken_ticker" in api_source:
+            raise ValueError("The API must not poll the external market-data provider")
+        if "KRAKEN_POLL_INTERVAL_SECONDS" not in worker_source:
+            raise ValueError("The standalone worker polling interval must be configurable")
+        if "pg_try_advisory_lock" not in repository_source:
+            raise ValueError("The worker must use a PostgreSQL advisory singleton lock")
+        if "market_ticker_snapshots" not in schema_source or "market_data_worker_state" not in schema_source:
+            raise ValueError("PostgreSQL schema must include snapshots and worker state")
+        if "DATABASE_URL" not in repository_source:
+            raise ValueError("The API must connect to shared market-data storage")
         if "https://api.kraken.com/0/public/Ticker" not in financial_source:
             raise ValueError("Kraken public ticker endpoint is missing")
         if "httpx>=" not in requirements:
@@ -172,16 +180,26 @@ def main() -> int:
         required_services = {
             "otel-collector", "prometheus", "tempo", "grafana",
             "blackbox-exporter", "alertmanager", "mailpit",
+            "postgres", "market-data-worker",
         }
         for name in required_services:
             service = services.get(name)
             if not service or "observability" not in service.get("profiles", []):
                 raise ValueError(f"{name} must be restricted to the observability profile")
         api_environment = services["hello-api"].get("environment", {})
-        if api_environment.get("KRAKEN_POLLING_ENABLED") != "${KRAKEN_POLLING_ENABLED:-true}":
-            raise ValueError("Compose must enable automatic market-data polling by default")
-        if api_environment.get("KRAKEN_POLL_INTERVAL_SECONDS") != "${KRAKEN_POLL_INTERVAL_SECONDS:-60}":
-            raise ValueError("Compose market-data polling interval must default to 60 seconds")
+        if "postgresql://" not in api_environment.get("DATABASE_URL", ""):
+            raise ValueError("Compose API must read market data from PostgreSQL")
+        worker_environment = services["market-data-worker"].get("environment", {})
+        if worker_environment.get("OTEL_SERVICE_NAME") != "market-data-worker":
+            raise ValueError("The market-data worker must have its own telemetry service name")
+        if worker_environment.get("KRAKEN_POLL_INTERVAL_SECONDS") != "${KRAKEN_POLL_INTERVAL_SECONDS:-60}":
+            raise ValueError("Compose worker polling interval must default to 60 seconds")
+        if "postgresql://" not in worker_environment.get("DATABASE_URL", ""):
+            raise ValueError("Compose worker must persist snapshots to PostgreSQL")
+        if not any("db/init" in str(mount) for mount in services["postgres"].get("volumes", [])):
+            raise ValueError("Compose PostgreSQL service must mount the initial schema")
+        if services["postgres"].get("healthcheck") is None:
+            raise ValueError("Compose PostgreSQL service must expose a health check")
         api_profiles = services["hello-api"].get("profiles", [])
         if "dev" not in api_profiles or "observability" not in api_profiles:
             raise ValueError("hello-api must support both dev and observability profiles")
@@ -195,7 +213,7 @@ def main() -> int:
         print(f"Observability validation failed: {exc}", file=sys.stderr)
         return 1
 
-    print("OpenTelemetry, SLO rules, financial API metrics, and Grafana dashboards are valid.")
+    print("OpenTelemetry, SLO rules, market-data worker, PostgreSQL storage, and Grafana dashboards are valid.")
     return 0
 
 

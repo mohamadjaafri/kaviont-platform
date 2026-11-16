@@ -1,0 +1,66 @@
+{{- if .Values.marketData.worker.enabled }}
+{{- if not .Values.marketData.enabled }}
+{{- fail "marketData.worker.enabled requires marketData.enabled=true" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hello-api.fullname" . }}-market-data-worker
+  labels:
+    app.kubernetes.io/name: {{ include "hello-api.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: market-data-worker
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "hello-api.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: market-data-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "hello-api.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: market-data-worker
+    spec:
+      serviceAccountName: {{ include "hello-api.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: market-data-worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "app.market_worker"]
+          env:
+            - name: KAVIONT_ENV
+              value: {{ .Values.environment | default "production" | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: market-data-worker
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.marketData.worker.otlpEndpoint | default "" | quote }}
+            - name: KRAKEN_POLL_INTERVAL_SECONDS
+              value: {{ .Values.marketData.pollIntervalSeconds | quote }}
+            - name: KRAKEN_MARKET_PAIR
+              value: {{ .Values.marketData.pair | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "marketData.databaseUrlSecretName is required when marketData.worker.enabled is true" .Values.marketData.databaseUrlSecretName | quote }}
+                  key: {{ .Values.marketData.databaseUrlSecretKey | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.marketData.worker.resources | nindent 12 }}
+{{- end }}

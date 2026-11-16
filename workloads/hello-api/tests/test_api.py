@@ -3,15 +3,16 @@ import importlib
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.market_repository import MarketDataNotReady, MarketDataStorageNotConfigured
 
 client = TestClient(app)
 
 
-class ReadyPoller:
-    def get_snapshot(self):
+class ReadyRepository:
+    def latest_snapshot(self, pair, interval):
         return {
             "provider": "kraken",
-            "pair": "XBTUSD",
+            "pair": pair,
             "last_price": 65000.0,
             "bid": 64999.0,
             "ask": 65001.0,
@@ -19,35 +20,43 @@ class ReadyPoller:
             "high_24h": 66000.0,
             "low_24h": 64000.0,
             "retrieved_at": "2026-11-16T12:00:00+00:00",
+            "fetched_at": "2026-11-16T12:00:00+00:00",
             "cache_age_seconds": 2.0,
             "stale": False,
-            "poll_interval_seconds": 60.0,
+            "poll_interval_seconds": interval,
         }
 
-    def status(self):
+    def worker_status(self, pair, interval):
         return {
             "provider": "kraken",
-            "pair": "XBTUSD",
+            "pair": pair,
             "polling_enabled": True,
-            "poll_interval_seconds": 60.0,
+            "poll_interval_seconds": interval,
+            "worker_status": "running",
+            "running": True,
             "has_snapshot": True,
-            "cache_age_seconds": 2.0,
-            "stale": False,
             "last_attempt_at": "2026-11-16T12:00:00+00:00",
             "last_successful_update": "2026-11-16T12:00:00+00:00",
             "last_error": None,
-            "running": True,
+            "worker_instance": "worker-test",
+            "heartbeat_age_seconds": 2.0,
         }
 
 
-class EmptyPoller:
-    def get_snapshot(self):
-        from app.market_poller import MarketDataNotReady
-
+class EmptyRepository:
+    def latest_snapshot(self, _pair, _interval):
         raise MarketDataNotReady
 
-    def status(self):
-        return {"polling_enabled": True, "has_snapshot": False, "running": True}
+    def worker_status(self, pair, interval):
+        return {
+            "provider": "kraken",
+            "pair": pair,
+            "polling_enabled": True,
+            "poll_interval_seconds": interval,
+            "worker_status": "not_started",
+            "running": False,
+            "has_snapshot": False,
+        }
 
 
 def test_root_returns_service_metadata() -> None:
@@ -57,7 +66,7 @@ def test_root_returns_service_metadata() -> None:
     assert response.json() == {
         "service": "hello-api",
         "status": "running",
-        "version": "0.7.0",
+        "version": "0.8.0",
     }
 
 
@@ -75,10 +84,10 @@ def test_readiness_endpoint() -> None:
     assert response.json() == {"status": "ready"}
 
 
-def test_kraken_ticker_endpoint_returns_cached_snapshot(monkeypatch) -> None:
+def test_kraken_ticker_endpoint_reads_persisted_snapshot(monkeypatch) -> None:
     import app.main as main_module
 
-    monkeypatch.setattr(main_module, "kraken_poller", ReadyPoller())
+    monkeypatch.setattr(main_module, "get_market_repository", lambda: ReadyRepository())
     response = client.get("/v1/market/kraken/ticker")
 
     assert response.status_code == 200
@@ -91,22 +100,55 @@ def test_kraken_ticker_endpoint_returns_cached_snapshot(monkeypatch) -> None:
 def test_kraken_ticker_endpoint_returns_503_before_first_success(monkeypatch) -> None:
     import app.main as main_module
 
-    monkeypatch.setattr(main_module, "kraken_poller", EmptyPoller())
+    monkeypatch.setattr(main_module, "get_market_repository", lambda: EmptyRepository())
     response = client.get("/v1/market/kraken/ticker")
 
     assert response.status_code == 503
-    assert "background poller is starting" in response.json()["detail"]
+    assert "worker has not stored a snapshot" in response.json()["detail"]
 
 
 def test_kraken_poller_status_endpoint(monkeypatch) -> None:
     import app.main as main_module
 
-    monkeypatch.setattr(main_module, "kraken_poller", ReadyPoller())
+    monkeypatch.setattr(main_module, "get_market_repository", lambda: ReadyRepository())
     response = client.get("/v1/market/kraken/status")
 
     assert response.status_code == 200
-    assert response.json()["polling_enabled"] is True
+    assert response.json()["running"] is True
     assert response.json()["pair"] == "XBTUSD"
+
+
+def test_market_data_endpoint_returns_safe_error_without_database(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(
+        main_module,
+        "get_market_repository",
+        lambda: (_ for _ in ()).throw(MarketDataStorageNotConfigured()),
+    )
+    response = client.get("/v1/market/kraken/ticker")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Market data storage is not configured"}
+
+
+def test_market_data_endpoint_returns_safe_error_when_database_is_unavailable(monkeypatch) -> None:
+    import app.main as main_module
+
+    class BrokenRepository:
+        def latest_snapshot(self, _pair, _interval):
+            raise RuntimeError("sensitive database diagnostic")
+
+    monkeypatch.setattr(
+        main_module,
+        "get_market_repository",
+        lambda: BrokenRepository(),
+    )
+    response = client.get("/v1/market/kraken/ticker")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Market data storage is unavailable"}
+    assert "sensitive database diagnostic" not in response.text
 
 
 def test_api_docs_are_enabled_in_local_environment(monkeypatch) -> None:

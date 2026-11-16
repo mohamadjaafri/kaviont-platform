@@ -1,4 +1,4 @@
-"""Optional OpenTelemetry instrumentation for the hello-api service."""
+"""Optional OpenTelemetry instrumentation for Kaviont API and worker processes."""
 
 from __future__ import annotations
 
@@ -18,13 +18,11 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 
-def configure_observability(app: FastAPI) -> bool:
-    """Enable OTLP export only when an endpoint is explicitly configured."""
+def _configure_providers(service_name: str):
     endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
     if not endpoint:
-        return False
+        return None, None
 
-    service_name = os.getenv("OTEL_SERVICE_NAME", "hello-api").strip() or "hello-api"
     resource = Resource.create(
         {
             "service.name": service_name,
@@ -47,9 +45,8 @@ def configure_observability(app: FastAPI) -> bool:
     meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)
 
-    # Process gauges make resource pressure visible without mounting the Docker socket.
     process = psutil.Process(os.getpid())
-    meter = meter_provider.get_meter("kaviont.hello-api")
+    meter = meter_provider.get_meter(f"kaviont.{service_name.replace('-', '_')}")
 
     def observe_cpu(_options):
         cpu_count = max(psutil.cpu_count(logical=True) or 1, 1)
@@ -57,8 +54,10 @@ def configure_observability(app: FastAPI) -> bool:
         yield Observation(utilization, {"process.name": service_name})
 
     def observe_memory(_options):
-        resident_bytes = process.memory_info().rss
-        yield Observation(resident_bytes, {"process.name": service_name})
+        yield Observation(
+            process.memory_info().rss,
+            {"process.name": service_name},
+        )
 
     meter.create_observable_gauge(
         "process.cpu.usage",
@@ -70,8 +69,18 @@ def configure_observability(app: FastAPI) -> bool:
         "process.memory.usage",
         callbacks=[observe_memory],
         unit="By",
-        description="Resident memory used by the hello-api process",
+        description="Resident memory used by the process",
     )
+    return traces, meter_provider
+
+
+def configure_observability(app: FastAPI) -> bool:
+    """Enable OTLP export and FastAPI instrumentation when configured."""
+    traces, meter_provider = _configure_providers(
+        os.getenv("OTEL_SERVICE_NAME", "hello-api").strip() or "hello-api"
+    )
+    if traces is None or meter_provider is None:
+        return False
 
     FastAPIInstrumentor.instrument_app(
         app,
@@ -80,3 +89,12 @@ def configure_observability(app: FastAPI) -> bool:
         excluded_urls="/healthz,/readyz",
     )
     return True
+
+
+def configure_worker_observability() -> bool:
+    """Enable process and client-request telemetry for the standalone worker."""
+    traces, meter_provider = _configure_providers(
+        os.getenv("OTEL_SERVICE_NAME", "market-data-worker").strip()
+        or "market-data-worker"
+    )
+    return traces is not None and meter_provider is not None

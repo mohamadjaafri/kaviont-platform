@@ -2,7 +2,7 @@
 
 Kaviont has two container-first local workflows. Neither provisions Azure resources or creates Azure charges.
 
-- **Compose loop:** the quickest API development and test cycle. It runs the application and test runner in containers. Source changes are mounted read-only and Uvicorn reloads the API.
+- **Compose loop:** the fastest application development and test cycle. It runs FastAPI, a dedicated market-data worker, PostgreSQL, and the test runner in containers. Source changes are mounted read-only and Uvicorn reloads the API.
 - **kind + Argo CD:** a single-node local Kubernetes cluster for deployment, Helm rendering, image loading, and GitOps reconciliation. kind nodes are Docker containers.
 
 The local profile is deliberately separate from the AKS profile. It does not emulate Azure networking, Microsoft Entra Workload Identity, ACR, or Key Vault.
@@ -28,7 +28,7 @@ Start the API:
 make dev-up
 ```
 
-The API is available at http://127.0.0.1:8080. The source folder is mounted read-only into the container, and Uvicorn reloads when you change Python files.
+The API is available at http://127.0.0.1:8080. Compose starts PostgreSQL and the separate market-data worker alongside it. The source folder is mounted read-only into the API container, and Uvicorn reloads when you change Python files. The worker persists successful Kraken ticker snapshots in PostgreSQL.
 
 Useful checks:
 
@@ -36,6 +36,10 @@ Useful checks:
 curl --fail http://127.0.0.1:8080/healthz
 curl --fail http://127.0.0.1:8080/readyz
 curl --fail http://127.0.0.1:8080/v1/secret-status
+curl --fail http://127.0.0.1:8080/v1/market/kraken/status
+curl --fail http://127.0.0.1:8080/v1/market/kraken/ticker
+curl --fail http://127.0.0.1:8080/v1/market/kraken/status
+curl --fail http://127.0.0.1:8080/v1/market/kraken/ticker
 ```
 
 Run the complete API test suite inside its dedicated test image:
@@ -50,7 +54,7 @@ Stop the Compose service:
 make dev-down
 ```
 
-The Dockerfile uses a cached dependency layer and separate `runtime` and `test` targets. A code-only change does not reinstall Python dependencies. The runtime image does not contain pytest or the development dependencies.
+The PostgreSQL data volume is retained when you run `make dev-down`. Use `docker compose --profile dev down --volumes` only when you intentionally want to delete local market history. The PostgreSQL volume is retained when you run `make dev-down`. Use `docker compose --profile dev down --volumes` only when you intentionally want to delete local market history. The Dockerfile uses a cached dependency layer and separate `runtime` and `test` targets. A code-only change does not reinstall Python dependencies. The runtime image does not contain pytest or the development dependencies.
 
 ## 2. Local Kubernetes and GitOps
 
