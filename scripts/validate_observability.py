@@ -288,6 +288,11 @@ def main() -> int:
             raise ValueError("Compose PostgreSQL service must mount the initial schema")
         if services["postgres"].get("healthcheck") is None:
             raise ValueError("Compose PostgreSQL service must expose a health check")
+        mailpit_service = services.get("mailpit", {})
+        if "1025" not in {str(port) for port in mailpit_service.get("expose", [])}:
+            raise ValueError("Mailpit must expose its SMTP port to the Compose network")
+        if "mailpit" not in services["alertmanager"].get("depends_on", []):
+            raise ValueError("Alertmanager must start with the local Mailpit SMTP service available")
         api_profiles = services["hello-api"].get("profiles", [])
         if "dev" not in api_profiles or "observability" not in api_profiles:
             raise ValueError("hello-api must support both dev and observability profiles")
