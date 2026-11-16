@@ -39,7 +39,7 @@ gitops-check:
 prometheus-check:
 	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yaml
 	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check rules /etc/prometheus/rules/kaviont.yml /etc/prometheus/rules/financial.yml
-	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --workdir /etc/prometheus --entrypoint=/bin/promtool prom/prometheus:v2.55.1 test rules rules/kaviont.test.yml
+	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --workdir /etc/prometheus --entrypoint=/bin/promtool prom/prometheus:v2.55.1 test rules tests/kaviont-rules.test.yml
 
 observability-check:
 	python scripts/validate_observability.py

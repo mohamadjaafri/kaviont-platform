@@ -26,6 +26,7 @@ def main() -> int:
         blackbox = load_yaml(ROOT / "observability/blackbox.yaml")
         alertmanager = load_yaml(ROOT / "observability/alertmanager.yaml")
         rules = load_yaml(ROOT / "observability/rules/kaviont.yml")
+        rule_test = load_yaml(ROOT / "observability/tests/kaviont-rules.test.yml")
         financial_rules = load_yaml(ROOT / "observability/rules/financial.yml")
         tempo = load_yaml(ROOT / "observability/tempo.yaml")
         dashboard = json.loads(
@@ -124,6 +125,17 @@ def main() -> int:
         )
         if any(identifier in all_rule_expressions for identifier in obsolete_http_identifiers):
             raise ValueError("HTTP SLO rules contain obsolete OpenTelemetry metric or label names")
+        if rule_test.get("rule_files") != ["../rules/kaviont.yml"]:
+            raise ValueError("Prometheus rule tests must reference the runtime rules outside the loaded rules directory")
+        test_series = [
+            str(series.get("series", ""))
+            for test_group in rule_test.get("tests", [])
+            for series in test_group.get("input_series", [])
+        ]
+        if not any('http_status_code="500"' in series for series in test_series):
+            raise ValueError("Prometheus rule tests must include synthetic HTTP 500 traffic")
+        if not any('http_status_code="200"' in series for series in test_series):
+            raise ValueError("Prometheus rule tests must include healthy HTTP 200 traffic")
 
         latency_alert = next(
             rule for group in groups for rule in group.get("rules", [])
