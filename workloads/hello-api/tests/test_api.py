@@ -14,7 +14,7 @@ def test_root_returns_service_metadata() -> None:
     assert response.json() == {
         "service": "hello-api",
         "status": "running",
-        "version": "0.5.0",
+        "version": "0.6.0",
     }
 
 
@@ -54,6 +54,24 @@ def test_api_docs_are_disabled_by_default(monkeypatch) -> None:
     assert production_client.get("/docs").status_code == 404
     assert production_client.get("/redoc").status_code == 404
     assert production_client.get("/openapi.json").status_code == 404
+
+
+def test_local_error_injection_is_available_only_outside_production(monkeypatch) -> None:
+    monkeypatch.setenv("KAVIONT_ENV", "local")
+    import app.main as main_module
+
+    main_module = importlib.reload(main_module)
+    local_client = TestClient(main_module.app)
+    response = local_client.get("/__test__/error")
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Intentional local test failure"}
+
+    monkeypatch.delenv("KAVIONT_ENV", raising=False)
+    main_module = importlib.reload(main_module)
+    production_client = TestClient(main_module.app)
+
+    assert production_client.get("/__test__/error").status_code == 404
 
 
 def test_secret_status_uses_local_mode_without_vault(monkeypatch) -> None:
