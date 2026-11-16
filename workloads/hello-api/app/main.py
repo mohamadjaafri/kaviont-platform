@@ -10,7 +10,7 @@ enable_api_docs = environment in {"local", "test"}
 
 app = FastAPI(
     title="Kaviont Hello API",
-    version="0.5.0",
+    version="0.6.0",
     docs_url="/docs" if enable_api_docs else None,
     redoc_url="/redoc" if enable_api_docs else None,
     openapi_url="/openapi.json" if enable_api_docs else None,
@@ -21,7 +21,7 @@ configure_observability(app)
 
 @app.get("/", tags=["service"])
 def root() -> dict[str, str]:
-    return {"service": "hello-api", "status": "running", "version": "0.5.0"}
+    return {"service": "hello-api", "status": "running", "version": "0.6.0"}
 
 
 @app.get("/healthz", tags=["health"])
@@ -32,6 +32,16 @@ def health() -> dict[str, str]:
 @app.get("/readyz", tags=["health"])
 def readiness() -> dict[str, str]:
     return {"status": "ready"}
+
+
+if enable_api_docs:
+    @app.get("/__test__/error", tags=["testing"])
+    def inject_test_error() -> None:
+        """Generate a controlled 500 response for local alert demonstrations."""
+        raise HTTPException(
+            status_code=500,
+            detail="Intentional local test failure",
+        )
 
 
 @app.get("/v1/secret-status", tags=["configuration"])
