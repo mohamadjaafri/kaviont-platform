@@ -1,0 +1,17 @@
+global:
+  smtp_smarthost: "mailpit:1025"
+  smtp_from: "kaviont-alerts@local.test"
+  smtp_require_tls: false
+
+route:
+  receiver: kaviont-local-email
+  group_by: ["alertname", "severity"]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+
+receivers:
+  - name: kaviont-local-email
+    email_configs:
+      - to: "platform-ops@local.test"
+        send_resolved: true
