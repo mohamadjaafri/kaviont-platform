@@ -224,7 +224,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "ms",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -234,11 +234,11 @@
               },
               {
                 "color": "orange",
-                "value": 0.25
+                "value": 250
               },
               {
                 "color": "red",
-                "value": 0.5
+                "value": 500
               }
             ]
           }
@@ -424,7 +424,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "ms"
         },
         "overrides": []
       },

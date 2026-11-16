@@ -26,6 +26,7 @@ def main() -> int:
         blackbox = load_yaml(ROOT / "observability/blackbox.yaml")
         alertmanager = load_yaml(ROOT / "observability/alertmanager.yaml")
         rules = load_yaml(ROOT / "observability/rules/kaviont.yml")
+        rule_test = load_yaml(ROOT / "observability/tests/kaviont-rules.test.yml")
         financial_rules = load_yaml(ROOT / "observability/rules/financial.yml")
         tempo = load_yaml(ROOT / "observability/tempo.yaml")
         dashboard = json.loads(
@@ -103,6 +104,46 @@ def main() -> int:
         if not required_alerts.issubset(alert_names):
             raise ValueError("Operational alert rules are incomplete")
 
+        rule_expressions = [
+            str(rule.get("expr", ""))
+            for group in groups
+            for rule in group.get("rules", [])
+        ]
+        all_rule_expressions = "\n".join(rule_expressions)
+        required_http_metrics = {
+            "kaviont_http_server_duration_milliseconds_count",
+            "kaviont_http_server_duration_milliseconds_bucket",
+        }
+        for metric_name in required_http_metrics:
+            if metric_name not in all_rule_expressions:
+                raise ValueError(f"HTTP SLO rules must use the exported metric {metric_name}")
+        if 'http_status_code=~"5.."' not in all_rule_expressions:
+            raise ValueError("HTTP error rules must filter the exported http_status_code label")
+        obsolete_http_identifiers = (
+            "kaviont_http_server_request_duration_seconds",
+            "http_response_status_code",
+        )
+        if any(identifier in all_rule_expressions for identifier in obsolete_http_identifiers):
+            raise ValueError("HTTP SLO rules contain obsolete OpenTelemetry metric or label names")
+        if rule_test.get("rule_files") != ["../rules/kaviont.yml"]:
+            raise ValueError("Prometheus rule tests must reference the runtime rules outside the loaded rules directory")
+        test_series = [
+            str(series.get("series", ""))
+            for test_group in rule_test.get("tests", [])
+            for series in test_group.get("input_series", [])
+        ]
+        if not any('http_status_code="500"' in series for series in test_series):
+            raise ValueError("Prometheus rule tests must include synthetic HTTP 500 traffic")
+        if not any('http_status_code="200"' in series for series in test_series):
+            raise ValueError("Prometheus rule tests must include healthy HTTP 200 traffic")
+
+        latency_alert = next(
+            rule for group in groups for rule in group.get("rules", [])
+            if rule.get("alert") == "KaviontAPIHighLatency"
+        )
+        if "kaviont:http_latency:p95_5m > 500" not in str(latency_alert.get("expr", "")):
+            raise ValueError("The p95 alert threshold must use milliseconds (500 ms)")
+
         financial_recordings = {
             rule.get("record")
             for group in financial_rules.get("groups", [])
@@ -135,6 +176,26 @@ def main() -> int:
         }
         if not required_panels.issubset(panel_titles):
             raise ValueError("Grafana operations dashboard is missing required panels")
+
+        latency_panels = [
+            panel for panel in dashboard.get("panels", [])
+            if panel.get("title") == "Latency · p95"
+        ]
+        if len(latency_panels) != 2:
+            raise ValueError("Grafana operations dashboard must expose both p95 latency panels")
+        if any(
+            panel.get("fieldConfig", {}).get("defaults", {}).get("unit") != "ms"
+            for panel in latency_panels
+        ):
+            raise ValueError("Grafana p95 latency panels must display milliseconds")
+        latency_stat = next(panel for panel in latency_panels if panel.get("type") == "stat")
+        latency_thresholds = {
+            step.get("value")
+            for step in latency_stat.get("fieldConfig", {}).get("defaults", {})
+                .get("thresholds", {}).get("steps", [])
+        }
+        if not {250, 500}.issubset(latency_thresholds):
+            raise ValueError("Grafana p95 thresholds must match 250 ms and 500 ms")
 
         if financial_dashboard.get("uid") != "kaviont-financial-data":
             raise ValueError("Grafana financial dashboard UID is missing or unexpected")
