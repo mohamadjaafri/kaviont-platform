@@ -86,8 +86,8 @@ local-down:
 # Optional local telemetry stack. Does not affect the default dev profile.
 observability-up:
 	mkdir -p .runtime/prometheus-targets
-	@test -f .runtime/prometheus-targets/kubernetes-otel.yml || printf '[]\\n' > .runtime/prometheus-targets/kubernetes-otel.yml
-	@test -f .runtime/prometheus-targets/kubernetes-readiness.yml || printf '[]\\n' > .runtime/prometheus-targets/kubernetes-readiness.yml
+	@test -f .runtime/prometheus-targets/kubernetes-otel.yml || printf '[]\n' > .runtime/prometheus-targets/kubernetes-otel.yml
+	@test -f .runtime/prometheus-targets/kubernetes-readiness.yml || printf '[]\n' > .runtime/prometheus-targets/kubernetes-readiness.yml
 	OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 docker compose --profile observability up --build -d
 
 observability-down:
