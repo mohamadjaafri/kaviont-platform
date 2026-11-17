@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: kaviont-local
+data:
+  collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 192
+      batch:
+        timeout: 5s
+        send_batch_size: 512
+
+    exporters:
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        namespace: kaviont
+        resource_to_telemetry_conversion:
+          enabled: true
+      debug:
+        verbosity: basic
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [debug]
