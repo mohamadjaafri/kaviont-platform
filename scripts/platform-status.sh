@@ -17,4 +17,4 @@ kubectl --context "${KUBE_CONTEXT}" get pods,svc -n kaviont-local
 echo
 echo "==> Prometheus Kubernetes targets"
 curl --fail --silent http://127.0.0.1:9090/api/v1/targets?state=active \
-  | python3 -c 'import json,sys; data=json.load(sys.stdin)["data"]["activeTargets"]; targets=[t for t in data if t["scrapeUrl"].find("30089") >= 0 or t["labels"].get("platform") == "kubernetes"]; [print(f"{t['labels'].get('job', '?')}: {t['health']} - {t['scrapeUrl']}") for t in targets]; sys.exit(0 if targets and all(t["health"] == "up" for t in targets) else 1)'
+  | python3 -c 'import json,sys; data=json.load(sys.stdin)["data"]["activeTargets"]; targets=[t for t in data if t["labels"].get("platform") == "kubernetes"]; [print("{}: {} - {}".format(t["labels"].get("job", "?"), t["health"], t["scrapeUrl"])) for t in targets]; sys.exit(0 if len(targets) == 2 and all(t["health"] == "up" for t in targets) else 1)'
