@@ -4,3 +4,4 @@ namespace: argocd
 resources:
   - app-project.yaml
   - hello-api-application.yaml
+  - otel-collector-application.yaml

@@ -40,6 +40,14 @@ spec:
           env:
             - name: KAVIONT_ENV
               value: {{ .Values.environment | default "production" | quote }}
+            {{- if .Values.telemetry.enabled }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.telemetry.serviceName | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.telemetry.otlpEndpoint | quote }}
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+            {{- end }}
             - name: KRAKEN_POLL_INTERVAL_SECONDS
               value: {{ .Values.marketData.pollIntervalSeconds | quote }}
             {{- if .Values.marketData.enabled }}

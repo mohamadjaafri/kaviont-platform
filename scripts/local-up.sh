@@ -48,6 +48,15 @@ kubectl --context "${KUBE_CONTEXT}" apply -k "${REPO_ROOT}/gitops/argocd/local"
 echo "Waiting for Argo CD to reconcile the local workload from the main branch."
 kubectl --context "${KUBE_CONTEXT}" rollout status deployment/hello-api-local -n kaviont-local --timeout=300s
 
+echo "Waiting for Argo CD to deploy the local OpenTelemetry Collector."
+for attempt in $(seq 1 60); do
+  if kubectl --context "${KUBE_CONTEXT}" -n kaviont-local get deployment otel-collector >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+kubectl --context "${KUBE_CONTEXT}" rollout status deployment/otel-collector -n kaviont-local --timeout=300s
+
 echo
 echo "Kaviont local Kubernetes environment is ready."
 echo "Argo CD: kubectl --context ${KUBE_CONTEXT} get applications -n argocd"

@@ -18,6 +18,11 @@ workloadIdentity:
   keyVaultUrl: ""
   secretName: platform-demo-token
 
+telemetry:
+  enabled: false
+  serviceName: hello-api
+  otlpEndpoint: ""
+
 marketData:
   enabled: false
   pollIntervalSeconds: 60
@@ -45,6 +50,7 @@ service:
   type: ClusterIP
   port: 80
   targetPort: 8080
+  nodePort: null
 
 resources:
   requests:

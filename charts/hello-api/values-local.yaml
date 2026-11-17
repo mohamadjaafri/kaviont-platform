@@ -2,6 +2,11 @@
 environment: local
 replicaCount: 1
 
+telemetry:
+  enabled: true
+  serviceName: hello-api-kubernetes
+  otlpEndpoint: http://otel-collector.kaviont-local.svc.cluster.local:4317
+
 image:
   repository: kaviont/hello-api
   tag: local
@@ -32,9 +37,10 @@ localSecret:
   secretKey: demo-secret
 
 service:
-  type: ClusterIP
+  type: NodePort
   port: 80
   targetPort: 8080
+  nodePort: 30081
 
 resources:
   requests:

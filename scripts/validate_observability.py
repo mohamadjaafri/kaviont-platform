@@ -47,8 +47,23 @@ def main() -> int:
 
         scrape_configs = prometheus["scrape_configs"]
         job_names = {job.get("job_name") for job in scrape_configs}
-        if not {"otel-collector", "hello-api-readiness"}.issubset(job_names):
-            raise ValueError("Prometheus must scrape the Collector and API readiness probe")
+        if not {"otel-collector", "hello-api-readiness", "otel-collector-kubernetes", "hello-api-kubernetes-readiness"}.issubset(job_names):
+            raise ValueError("Prometheus must scrape Compose and Kubernetes telemetry and readiness")
+        kube_otel_job = next(job for job in scrape_configs if job.get("job_name") == "otel-collector-kubernetes")
+        kube_readiness_job = next(job for job in scrape_configs if job.get("job_name") == "hello-api-kubernetes-readiness")
+        if "/prometheus-targets/kubernetes-otel.yml" not in [
+            file for group in kube_otel_job.get("file_sd_configs", []) for file in group.get("files", [])
+        ]:
+            raise ValueError("Kubernetes Collector must use a runtime file-discovery target")
+        if "/prometheus-targets/kubernetes-readiness.yml" not in [
+            file for group in kube_readiness_job.get("file_sd_configs", []) for file in group.get("files", [])
+        ]:
+            raise ValueError("Kubernetes readiness must use a runtime file-discovery target")
+        if kube_readiness_job.get("metrics_path") != "/probe" or not any(
+            item.get("replacement") == "blackbox-exporter:9115"
+            for item in kube_readiness_job.get("relabel_configs", [])
+        ):
+            raise ValueError("Kubernetes readiness must be probed through the Blackbox Exporter")
         probe_job = next(job for job in scrape_configs if job.get("job_name") == "hello-api-readiness")
         if probe_job.get("metrics_path") != "/probe":
             raise ValueError("Readiness probe must use the Blackbox Exporter /probe endpoint")
@@ -187,6 +202,9 @@ def main() -> int:
             "Latency · p95",
             "Request Rate",
             "Readiness Probe",
+            "Kubernetes API Readiness",
+            "Kubernetes API Request Rate",
+            "Kubernetes API Latency · p95",
             "API Process CPU",
             "API Process Memory · Resident Set",
             "Distributed Traces · hello-api",
@@ -301,6 +319,16 @@ def main() -> int:
             raise ValueError("Prometheus must retain enough data for the 30-day SLO")
         if not any("observability/rules" in str(mount) for mount in services["prometheus"].get("volumes", [])):
             raise ValueError("Prometheus rule files must be mounted into the container")
+        if not any(".runtime/prometheus-targets" in str(mount) for mount in services["prometheus"].get("volumes", [])):
+            raise ValueError("Prometheus runtime Kubernetes target directory must be mounted")
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        for target in ("platform-up:", "platform-down:", "platform-status:"):
+            if target not in makefile:
+                raise ValueError(f"Makefile is missing the integrated local platform target {target}")
+        platform_up = (ROOT / "scripts/platform-up.sh").read_text(encoding="utf-8")
+        for required in ("local-up.sh", "make observability-up", "docker network connect kind", "kubernetes-readiness.yml", "kubernetes-otel.yml"):
+            if required not in platform_up:
+                raise ValueError(f"Integrated platform startup is missing: {required}")
 
     except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError, json.JSONDecodeError) as exc:
         print(f"Observability validation failed: {exc}", file=sys.stderr)

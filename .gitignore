@@ -30,3 +30,6 @@ htmlcov/
 .env.*
 !.env.example
 .DS_Store
+
+# Local runtime target discovery files for Prometheus
+.runtime/

@@ -123,7 +123,33 @@ Changes to the Helm chart or the local values file are reconciled by Argo CD onl
 - Local secret material is random and disposable. Never use a real credential or commit a populated `.env` file.
 - The Argo CD installation is the repository's non-HA learning profile, not a production configuration.
 
-## 5. Clean up
+## 5. Combined local platform
+
+For an integrated local environment, start kind, Argo CD, the Kubernetes API, the in-cluster OpenTelemetry Collector, and the Docker Compose observability stack with one command:
+
+```bash
+make platform-up
+```
+
+The command attaches the Compose Prometheus and Blackbox Exporter containers to kind's Docker network. Prometheus then scrapes the in-cluster Collector metrics NodePort (30089) and Blackbox Exporter probes the Kubernetes API readiness NodePort (30081). The Compose stack also continues to monitor its own API. Grafana displays the Kubernetes API readiness, request rate, and p95 latency panels.
+
+Check the combined environment:
+
+```bash
+make platform-status
+```
+
+The Kubernetes application exports OTLP metrics to `otel-collector.kaviont-local.svc.cluster.local:4317`. The in-cluster Collector exposes Prometheus metrics on NodePort 30089. Kubernetes traces are logged by the Collector debug exporter and are not sent to the Compose Tempo service yet.
+
+Stop both environments:
+
+```bash
+make platform-down
+```
+
+This stops the Compose stack and deletes the kind cluster. Named Docker volumes are retained. Use the individual `make local-up` and `make observability-up` commands when you need only one environment.
+
+## 6. Clean up
 
 Stop the fast Compose loop:
 
