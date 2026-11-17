@@ -45,16 +45,42 @@ kubectl --context "${KUBE_CONTEXT}" rollout status deployment/argocd-server -n a
 echo "Registering the isolated local AppProject and Application."
 kubectl --context "${KUBE_CONTEXT}" apply -k "${REPO_ROOT}/gitops/argocd/local"
 
+wait_for_argo_application() {
+  local application_name="$1"
+  local timeout_seconds="${2:-600}"
+  local started_at="${SECONDS}"
+  local app_state=""
+
+  echo "Waiting for Argo CD application ${application_name} to become Synced and Healthy."
+  while (( SECONDS - started_at < timeout_seconds )); do
+    app_state="$(
+      kubectl --context "${KUBE_CONTEXT}" -n argocd get application "${application_name}" \
+        -o jsonpath='{.status.sync.status}|{.status.health.status}' 2>/dev/null || true
+    )"
+
+    if [[ "${app_state}" == "Synced|Healthy" ]]; then
+      echo "Argo CD application ${application_name}: Synced and Healthy."
+      return 0
+    fi
+
+    if (( (SECONDS - started_at) > 0 && (SECONDS - started_at) % 30 < 5 )); then
+      echo "Still waiting for ${application_name} (sync/health: ${app_state:-Pending})."
+    fi
+    sleep 5
+  done
+
+  echo "Timed out waiting for Argo CD application ${application_name} (sync/health: ${app_state:-Pending})." >&2
+  kubectl --context "${KUBE_CONTEXT}" -n argocd describe application "${application_name}" >&2 || true
+  kubectl --context "${KUBE_CONTEXT}" -n kaviont-local get pods,svc >&2 || true
+  return 1
+}
+
 echo "Waiting for Argo CD to reconcile the local workload from the main branch."
+wait_for_argo_application "hello-api-local" 600
 kubectl --context "${KUBE_CONTEXT}" rollout status deployment/hello-api-local -n kaviont-local --timeout=300s
 
 echo "Waiting for Argo CD to deploy the local OpenTelemetry Collector."
-for attempt in $(seq 1 60); do
-  if kubectl --context "${KUBE_CONTEXT}" -n kaviont-local get deployment otel-collector >/dev/null 2>&1; then
-    break
-  fi
-  sleep 2
-done
+wait_for_argo_application "otel-collector-local" 600
 kubectl --context "${KUBE_CONTEXT}" rollout status deployment/otel-collector -n kaviont-local --timeout=300s
 
 echo
