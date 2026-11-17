@@ -29,7 +29,7 @@ helm-check:
 
 gitops-check:
 	python -m pip install "PyYAML>=6,<7"
-	bash -n scripts/platform-up.sh scripts/platform-down.sh scripts/platform-status.sh
+	bash -n scripts/platform-up.sh scripts/platform-down.sh scripts/platform-status.sh scripts/local-up.sh
 	python scripts/validate_gitops.py
 	$(MAKE) observability-check
 	helm lint $(CHART_DIR) --values $(CHART_DIR)/values-gitops.yaml.example
