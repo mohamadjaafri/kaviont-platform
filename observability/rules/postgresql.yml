@@ -1,0 +1,79 @@
+groups:
+  - name: kaviont-postgresql-recording-rules
+    interval: 30s
+    rules:
+      - record: kaviont:postgres_connections:count
+        expr: sum(pg_stat_database_numbackends)
+
+      - record: kaviont:postgres_connections:utilization
+        expr: |
+          sum(pg_stat_database_numbackends)
+          /
+          clamp_min(pg_settings_max_connections, 1)
+
+      - record: kaviont:postgres_cache_hit_ratio:ratio5m
+        expr: |
+          sum(rate(pg_stat_database_blks_hit{datname="kaviont"}[5m]))
+          /
+          clamp_min(
+            sum(rate(pg_stat_database_blks_hit{datname="kaviont"}[5m]))
+            + sum(rate(pg_stat_database_blks_read{datname="kaviont"}[5m])),
+            1e-9
+          )
+
+      - record: kaviont:postgres_transactions:rate5m
+        expr: |
+          sum(rate(pg_stat_database_xact_commit{datname="kaviont"}[5m]))
+          + sum(rate(pg_stat_database_xact_rollback{datname="kaviont"}[5m]))
+
+  - name: kaviont-postgresql-alert-rules
+    rules:
+      - alert: KaviontPostgreSQLExporterUnreachable
+        expr: up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgresql
+        annotations:
+          summary: "Kaviont PostgreSQL exporter is unreachable"
+          description: "Prometheus cannot scrape the PostgreSQL exporter for at least one minute."
+
+      - alert: KaviontPostgreSQLUnavailable
+        expr: pg_up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgresql
+        annotations:
+          summary: "Kaviont PostgreSQL exporter cannot connect to the database"
+          description: "The PostgreSQL exporter reports pg_up=0 for at least one minute."
+
+      - alert: KaviontPostgreSQLConnectionsHigh
+        expr: kaviont:postgres_connections:utilization > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: postgresql
+        annotations:
+          summary: "Kaviont PostgreSQL connection utilization is above 80%"
+          description: "More than 80% of configured PostgreSQL connections have been used for at least five minutes."
+
+      - alert: KaviontPostgreSQLDeadlocksDetected
+        expr: increase(pg_stat_database_deadlocks{datname="kaviont"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: postgresql
+        annotations:
+          summary: "Kaviont PostgreSQL detected a deadlock"
+          description: "At least one deadlock was recorded in the kaviont database during the last five minutes."
+
+      - alert: KaviontPostgreSQLLongRunningTransaction
+        expr: max(pg_stat_activity_max_tx_duration{datname="kaviont", state="active"}) > 300
+        for: 2m
+        labels:
+          severity: warning
+          service: postgresql
+        annotations:
+          summary: "Kaviont PostgreSQL has a long-running active transaction"
+          description: "An active transaction in the kaviont database has been running for more than five minutes."
