@@ -25,12 +25,16 @@ groups:
 
       - record: kaviont:slo:availability:ratio30d
         expr: |
-          1 -
           (
-            (sum(increase(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5..", http_target!="/__test__/error"}[30d])) or vector(0))
-            /
-            clamp_min((sum(increase(kaviont_http_server_duration_milliseconds_count{http_target!="/__test__/error"}[30d])) or vector(0)), 1)
+            1 -
+            (
+              (sum(increase(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5..", http_target!="/__test__/error"}[30d])) or vector(0))
+              /
+              clamp_min(sum(increase(kaviont_http_server_duration_milliseconds_count{http_target!="/__test__/error"}[30d])), 1)
+            )
           )
+          and
+          (sum(increase(kaviont_http_server_duration_milliseconds_count{http_target!="/__test__/error"}[30d])) > 0)
 
       - record: kaviont:slo:error_budget:remaining_ratio30d
         expr: clamp_max(clamp_min(1 - ((1 - kaviont:slo:availability:ratio30d) / 0.001), 0), 1)
