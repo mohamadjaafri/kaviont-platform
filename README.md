@@ -84,6 +84,23 @@ For Kubernetes and GitOps integration, install kind, kubectl, and OpenSSL, then 
 
 The kind cluster has one node. The application image is loaded directly into that node, never pushed to ACR. The local Argo CD Application and Azure Argo CD Application use separate projects, namespaces, and values files.
 
+## Integrated local Kubernetes observability
+
+Start the Kubernetes/GitOps environment and the observability stack together:
+
+    make platform-up
+
+The command creates or reuses the kind cluster, deploys the hello-api and an OpenTelemetry Collector through Argo CD, starts Prometheus/Grafana/Alertmanager/Mailpit with Docker Compose, and connects Prometheus and Blackbox Exporter to the kind Docker network. Prometheus scrapes OTLP metrics from the Kubernetes workload and blackbox-probes its readiness endpoint. The local API is exposed through NodePort 30081 inside the kind Docker network, and the collector's Prometheus endpoint through NodePort 30089.
+
+Use the combined lifecycle commands:
+
+    make platform-status
+    make platform-down
+
+The integrated dashboard includes the Kubernetes API readiness, request rate, and p95 latency alongside the existing local operations panels. The kind collector sends Kubernetes application metrics to Prometheus; its traces go to the collector debug exporter rather than the Compose Tempo instance. The existing Compose application continues to export traces to Tempo.
+
+Use `make local-forward` in a separate terminal when you need to call the Kubernetes API from the host at http://127.0.0.1:8081. `make observability-up` and `make local-up` remain available independently.
+
 ## Local operations dashboard
 
 Start the optional telemetry and operations stack:
