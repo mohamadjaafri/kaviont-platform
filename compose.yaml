@@ -149,7 +149,7 @@ services:
     volumes:
       - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
       - ./observability/rules:/etc/prometheus/rules:ro
-      - ./.runtime/prometheus-targets:/etc/prometheus/targets:ro
+      - ./.runtime/prometheus-targets:/prometheus-targets:ro
       - prometheus-data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
