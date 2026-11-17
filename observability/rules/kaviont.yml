@@ -3,27 +3,33 @@ groups:
     interval: 30s
     rules:
       - record: kaviont:http_requests:rate5m
-        expr: sum(rate(kaviont_http_server_duration_milliseconds_count[5m]))
+        expr: sum(rate(kaviont_http_server_duration_milliseconds_count{http_target!="/__test__/error"}[5m]))
 
       - record: kaviont:http_errors:rate5m
-        expr: sum(rate(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5.."}[5m]))
+        expr: sum(rate(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5..", http_target!="/__test__/error"}[5m]))
 
       - record: kaviont:http_errors:ratio5m
         expr: |
-          (sum(rate(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5.."}[5m])) or vector(0))
+          (sum(rate(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5..", http_target!="/__test__/error"}[5m])) or vector(0))
           /
-          clamp_min((sum(rate(kaviont_http_server_duration_milliseconds_count[5m])) or vector(0)), 1e-9)
+          clamp_min((sum(rate(kaviont_http_server_duration_milliseconds_count{http_target!="/__test__/error"}[5m])) or vector(0)), 1e-9)
 
       - record: kaviont:http_latency:p95_5m
-        expr: histogram_quantile(0.95, sum by (le) (rate(kaviont_http_server_duration_milliseconds_bucket[5m])))
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(kaviont_http_server_duration_milliseconds_bucket{http_target!="/__test__/error"}[5m])
+            )
+          )
 
       - record: kaviont:slo:availability:ratio30d
         expr: |
           1 -
           (
-            (sum(increase(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5.."}[30d])) or vector(0))
+            (sum(increase(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5..", http_target!="/__test__/error"}[30d])) or vector(0))
             /
-            clamp_min((sum(increase(kaviont_http_server_duration_milliseconds_count[30d])) or vector(0)), 1)
+            clamp_min((sum(increase(kaviont_http_server_duration_milliseconds_count{http_target!="/__test__/error"}[30d])) or vector(0)), 1)
           )
 
       - record: kaviont:slo:error_budget:remaining_ratio30d
@@ -35,9 +41,9 @@ groups:
       - record: kaviont:slo:error_budget:burn_rate1h
         expr: |
           (
-            (sum(rate(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5.."}[1h])) or vector(0))
+            (sum(rate(kaviont_http_server_duration_milliseconds_count{http_status_code=~"5..", http_target!="/__test__/error"}[1h])) or vector(0))
             /
-            clamp_min((sum(rate(kaviont_http_server_duration_milliseconds_count[1h])) or vector(0)), 1e-9)
+            clamp_min((sum(rate(kaviont_http_server_duration_milliseconds_count{http_target!="/__test__/error"}[1h])) or vector(0)), 1e-9)
           ) / 0.001
 
   - name: kaviont-alert-rules
@@ -93,7 +99,7 @@ groups:
           description: "Less than 10% of the rolling 30-day error budget remains."
 
       - alert: KaviontProcessCPUHigh
-        expr: kaviont_process_cpu_usage_ratio > 0.8
+        expr: kaviont_process_cpu_usage_ratio{process_name="hello-api"} > 0.8
         for: 5m
         labels:
           severity: warning
@@ -103,7 +109,7 @@ groups:
           description: "The hello-api process has sustained high CPU utilization."
 
       - alert: KaviontProcessMemoryHigh
-        expr: kaviont_process_memory_usage_bytes > 536870912
+        expr: kaviont_process_memory_usage_bytes{process_name="hello-api"} > 536870912
         for: 5m
         labels:
           severity: warning
