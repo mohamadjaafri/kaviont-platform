@@ -41,7 +41,7 @@ prometheus-check:
 	mkdir -p .runtime/prometheus-targets
 	@test -f .runtime/prometheus-targets/kubernetes-otel.yml || printf '[]\n' > .runtime/prometheus-targets/kubernetes-otel.yml
 	@test -f .runtime/prometheus-targets/kubernetes-readiness.yml || printf '[]\n' > .runtime/prometheus-targets/kubernetes-readiness.yml
-	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --volume "$(CURDIR)/.runtime/prometheus-targets:/etc/prometheus/targets:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yaml
+	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --volume "$(CURDIR)/.runtime/prometheus-targets:/prometheus-targets:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yaml
 	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check rules /etc/prometheus/rules/kaviont.yml /etc/prometheus/rules/financial.yml
 	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --workdir /etc/prometheus --entrypoint=/bin/promtool prom/prometheus:v2.55.1 test rules tests/kaviont-rules.test.yml
 
