@@ -156,6 +156,7 @@ def main() -> int:
         collector_config_resource = load_yaml(LOCAL_DIR / "otel-collector" / "collector-config.yaml")
         collector_config = yaml.safe_load(collector_config_resource.get("data", {}).get("collector-config.yaml", ""))
         require(collector_config.get("service", {}).get("pipelines", {}).get("metrics", {}).get("exporters") == ["prometheus"], "Local Collector must export Kubernetes metrics to Prometheus.")
+        require(collector_config.get("exporters", {}).get("prometheus", {}).get("resource_to_telemetry_conversion", {}).get("enabled") is True, "Local Collector must expose resource labels for Kubernetes-specific Grafana panels.")
         collector_services = list(yaml.safe_load_all((LOCAL_DIR / "otel-collector" / "collector-services.yaml").read_text(encoding="utf-8")))
         require(any(service.get("metadata", {}).get("name") == "otel-collector" and service.get("spec", {}).get("type") == "ClusterIP" for service in collector_services), "Local Collector OTLP endpoint must be a ClusterIP service.")
         require(any(
