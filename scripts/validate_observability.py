@@ -176,7 +176,7 @@ def main() -> int:
             raise ValueError("PostgreSQL alert rules are incomplete")
         if not required_postgresql_recordings.issubset(postgresql_recordings):
             raise ValueError("PostgreSQL recording rules are incomplete")
-        postgresql_expressions = "\\n".join(
+        postgresql_expressions = "\n".join(
             str(rule.get("expr", ""))
             for group in postgresql_rules.get("groups", [])
             for rule in group.get("rules", [])
