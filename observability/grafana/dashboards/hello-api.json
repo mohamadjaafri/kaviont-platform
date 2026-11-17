@@ -282,7 +282,8 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "reqps",
+          "decimals": 2
         },
         "overrides": []
       },
@@ -386,7 +387,8 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "reqps",
+          "decimals": 2
         },
         "overrides": []
       },
@@ -554,7 +556,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Availability objective:** 99.9% over a rolling 30-day window. The error budget is 0.1% of requests. Alerts cover readiness, sustained 5xx rate, p95 latency, multi-window error-budget burn, and process CPU/RAM.\\n\\n- [Prometheus Alerts](http://localhost:9090/alerts) · [Alertmanager](http://localhost:9093) · [Mailpit Email Inbox](http://localhost:8025)\\n- Trigger a controlled local 500 with `curl http://localhost:8080/__test__/error`. This route exists only when `KAVIONT_ENV=local` or `test`."
+        "content": "**Availability objective:** 99.9% over a rolling 30-day window. The error budget is 0.1% of requests. Alerts cover readiness, sustained 5xx rate, p95 latency, multi-window error-budget burn, and process CPU/RAM.\n\n- [Prometheus Alerts](http://localhost:9090/alerts) · [Alertmanager](http://localhost:9093) · [Mailpit Email Inbox](http://localhost:8025)\n- Trigger a controlled local 500 with `curl http://localhost:8080/__test__/error`. This route exists only when `KAVIONT_ENV=local` or `test`."
       }
     },
     {
