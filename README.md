@@ -25,7 +25,7 @@ Kaviont is an independent engineering reference project for building a repeatabl
 - Docker Compose development profile with source hot reload and containerized tests.
 - Single-node kind profile with a separate restricted local Argo CD Application.
 - Multi-stage container build with BuildKit dependency caching and distinct runtime/test targets.
-- Optional local operations stack with OpenTelemetry, Prometheus, Tempo, Grafana, Blackbox Exporter, Alertmanager, and Mailpit.
+- Optional local operations stack with OpenTelemetry, Prometheus, Tempo, Grafana, Blackbox Exporter, Alertmanager, Mailpit, and a localhost-only Adminer database UI.
 - Dedicated Kraken market-data worker with PostgreSQL persistence, a singleton advisory lock, latest-snapshot API reads, and historical ticker storage.
 - Rolling 30-day 99.9% request availability objective, error-budget recording rules, golden-signal alerts, and local email notification tests.
 - GitHub Actions checks for both Terraform roots, Helm, Python tests, container build, Prometheus rules, Alertmanager config, and GitOps manifests.
@@ -52,7 +52,7 @@ Detailed design: docs/architecture.md, ADR 0001-0006, docs/security-and-cost.md,
 - charts/hello-api: Helm chart and GitOps values template
 - gitops/argocd: Azure and local AppProjects, Applications, and Kustomize entry points
 - kind: single-node local Kubernetes cluster configuration
-- compose.yaml: containerized API, market-data worker, PostgreSQL, test, and operations profiles
+- compose.yaml: containerized API, market-data worker, PostgreSQL, Adminer, test, and operations profiles
 - db/init: initial PostgreSQL schema for ticker history and worker status
 - observability: Collector, Prometheus, SLO rules, Blackbox Exporter, Alertmanager, Tempo, and Grafana configuration
 - scripts: Terraform output renderer, Argo CD bootstrap, local cluster lifecycle, and GitOps validator
@@ -90,12 +90,14 @@ Start the Kubernetes/GitOps environment and the observability stack together:
 
     make platform-up
 
-The command creates or reuses the kind cluster, deploys the hello-api and an OpenTelemetry Collector through Argo CD, starts Prometheus/Grafana/Alertmanager/Mailpit with Docker Compose, and connects Prometheus and Blackbox Exporter to the kind Docker network. Prometheus scrapes OTLP metrics from the Kubernetes workload and blackbox-probes its readiness endpoint. The local API is exposed through NodePort 30081 inside the kind Docker network, and the collector's Prometheus endpoint through NodePort 30089.
+The command creates or reuses the kind cluster, deploys the hello-api and an OpenTelemetry Collector through Argo CD, starts PostgreSQL, Adminer, Prometheus/Grafana/Alertmanager/Mailpit, and the other local operations services with Docker Compose, and connects Prometheus and Blackbox Exporter to the kind Docker network. Prometheus scrapes OTLP metrics from the Kubernetes workload and blackbox-probes its readiness endpoint. The local API is exposed through NodePort 30081 inside the kind Docker network, and the collector's Prometheus endpoint through NodePort 30089.
 
 Use the combined lifecycle commands:
 
     make platform-status
     make platform-down
+
+Adminer is available at http://127.0.0.1:8085. It connects to the Compose PostgreSQL service over the internal Compose network and its web port is bound to localhost only. Use System `PostgreSQL`, Server `postgres`, Username `kaviont`, Database `kaviont`, and the configured `POSTGRES_PASSWORD` (default: `kaviont-local-only`). To start only PostgreSQL and its UI without the rest of the operations stack, run `make database-ui`; stop only the UI with `make database-ui-down`.
 
 The integrated dashboard includes the Kubernetes API readiness, request rate, and p95 latency alongside the existing local operations panels. The kind collector sends Kubernetes application metrics to Prometheus; its traces go to the collector debug exporter rather than the Compose Tempo instance. The existing Compose application continues to export traces to Tempo.
 
@@ -111,7 +113,7 @@ The dedicated market-data worker fetches the configured Kraken ticker immediatel
 
 Open the provisioned **Kaviont - Operations Overview** and **Kaviont - Financial Data Reliability** dashboards in Grafana at http://127.0.0.1:3000 (local default: admin / admin). It includes the rolling 30-day availability SLO, remaining error budget, request rate, 5xx ratio, p95 latency, readiness probe, API process CPU/RAM, and Tempo traces.
 
-Configure the polling interval with KRAKEN_POLL_INTERVAL_SECONDS and market pair with KRAKEN_MARKET_PAIR. The worker holds a PostgreSQL session-level advisory lock, preventing overlapping worker instances from polling at the same time. PostgreSQL keeps the ticker history in the named market-data-db volume. The local Compose credentials are development-only.
+Configure the polling interval with KRAKEN_POLL_INTERVAL_SECONDS and market pair with KRAKEN_MARKET_PAIR. The worker holds a PostgreSQL session-level advisory lock, preventing overlapping worker instances from polling at the same time. PostgreSQL keeps the ticker history in the named market-data-db volume. Adminer provides a browser-based view of this database at http://127.0.0.1:8085. The local Compose credentials are development-only.
 
 Operational alerts are evaluated by Prometheus and routed through Alertmanager. Mailpit catches notification emails locally at http://127.0.0.1:8025, without sending them externally. Prometheus is at http://127.0.0.1:9090 and Alertmanager is at http://127.0.0.1:9093.
 
