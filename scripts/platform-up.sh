@@ -41,24 +41,8 @@ YAML
 echo "==> Starting the Docker Compose observability stack."
 make observability-up
 
-if ! docker network inspect kind >/dev/null 2>&1; then
-  echo "The kind Docker network was not found after local-up." >&2
-  exit 1
-fi
-
-echo "==> Connecting Prometheus and Blackbox Exporter to the kind Docker network."
-for service in prometheus blackbox-exporter; do
-  container_id="$(docker compose --profile observability ps -q "${service}")"
-  if [[ -z "${container_id}" ]]; then
-    echo "Compose service ${service} is not running." >&2
-    exit 1
-  fi
-
-  networks="$(docker inspect --format '{{json .NetworkSettings.Networks}}' "${container_id}")"
-  if ! grep -q '"kind"' <<< "${networks}"; then
-    docker network connect kind "${container_id}"
-  fi
-done
+echo "==> Ensuring Compose observability containers are connected to the kind Docker network."
+make observability-connect-kind
 
 echo "==> Waiting for Prometheus to scrape the Kubernetes Collector and readiness probe."
 targets_ready=false
