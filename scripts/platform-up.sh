@@ -83,5 +83,6 @@ echo "Grafana:        http://127.0.0.1:3000"
 echo "Prometheus:     http://127.0.0.1:9090/targets"
 echo "Alertmanager:   http://127.0.0.1:9093"
 echo "Mailpit:        http://127.0.0.1:8025"
+echo "Adminer:        http://127.0.0.1:8085"
 echo
 echo "Run 'make platform-status' to inspect Kubernetes resources and Prometheus targets."
