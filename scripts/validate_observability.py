@@ -59,6 +59,11 @@ def main() -> int:
             file for group in kube_readiness_job.get("file_sd_configs", []) for file in group.get("files", [])
         ]:
             raise ValueError("Kubernetes readiness must use a runtime file-discovery target")
+        if kube_readiness_job.get("metrics_path") != "/probe" or not any(
+            item.get("replacement") == "blackbox-exporter:9115"
+            for item in kube_readiness_job.get("relabel_configs", [])
+        ):
+            raise ValueError("Kubernetes readiness must be probed through the Blackbox Exporter")
         probe_job = next(job for job in scrape_configs if job.get("job_name") == "hello-api-readiness")
         if probe_job.get("metrics_path") != "/probe":
             raise ValueError("Readiness probe must use the Blackbox Exporter /probe endpoint")
