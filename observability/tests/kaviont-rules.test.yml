@@ -60,13 +60,20 @@ tests:
               summary: "Kaviont PostgreSQL exporter cannot connect to the database"
               description: "The PostgreSQL exporter reports pg_up=0 for at least one minute."
 
-  - name: PostgreSQL connection utilization above 80 percent fires a warning
+  - name: PostgreSQL connection utilization aggregates away exporter target labels
     interval: 30s
     input_series:
-      - series: 'pg_stat_database_numbackends{datname="kaviont"}'
+      - series: 'pg_stat_database_numbackends{datname="kaviont", environment="local", instance="postgres-exporter:9187", job="postgres-exporter", platform="compose"}'
         values: '90+0x16'
-      - series: 'pg_settings_max_connections'
+      - series: 'pg_settings_max_connections{environment="local", instance="postgres-exporter:9187", job="postgres-exporter", platform="compose"}'
         values: '100+0x16'
+
+    promql_expr_test:
+      - expr: kaviont:postgres_connections:utilization
+        eval_time: 7m
+        exp_samples:
+          - labels: 'kaviont:postgres_connections:utilization'
+            value: 0.9
 
     alert_rule_test:
       - eval_time: 7m

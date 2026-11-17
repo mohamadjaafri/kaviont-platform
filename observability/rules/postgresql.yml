@@ -9,7 +9,7 @@ groups:
         expr: |
           sum(pg_stat_database_numbackends)
           /
-          clamp_min(pg_settings_max_connections, 1)
+          clamp_min(max(pg_settings_max_connections), 1)
 
       - record: kaviont:postgres_cache_hit_ratio:ratio5m
         expr: |
