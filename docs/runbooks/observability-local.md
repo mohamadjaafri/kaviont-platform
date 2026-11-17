@@ -25,6 +25,14 @@ The observability target sets the API OTLP endpoint to `http://otel-collector:43
 
 Expected value: `http://otel-collector:4317`.
 
+When a local kind cluster is present, `make observability-up` also connects Prometheus and Blackbox Exporter to the kind Docker network. This lets Prometheus resolve `kaviont-local-control-plane` for the Kubernetes Collector and readiness targets.
+
+A direct Compose recreation (for example, `docker compose --profile observability up -d --force-recreate prometheus`) replaces the Prometheus container and drops its manually attached kind-network connection. Restore both connections with:
+
+    make observability-connect-kind
+
+Prefer `make observability-up` or `make platform-up` for lifecycle operations so the network attachment is restored automatically.
+
 Wait until the containers are running:
 
     docker compose --profile observability ps

@@ -467,9 +467,14 @@ def main() -> int:
             if target not in makefile:
                 raise ValueError(f"Makefile is missing the integrated local platform target {target}")
         platform_up = (ROOT / "scripts/platform-up.sh").read_text(encoding="utf-8")
-        for required in ("local-up.sh", "make observability-up", "docker network connect kind", "kubernetes-readiness.yml", "kubernetes-otel.yml", "pg_up"):
+        for required in ("local-up.sh", "make observability-up", "make observability-connect-kind", "kubernetes-readiness.yml", "kubernetes-otel.yml", "pg_up"):
             if required not in platform_up:
                 raise ValueError(f"Integrated platform startup is missing: {required}")
+        network_helper = (ROOT / "scripts/connect-observability-to-kind.sh").read_text(encoding="utf-8")
+        if "docker network connect kind" not in network_helper:
+            raise ValueError("Observability network helper must connect Compose services to the kind Docker network")
+        if "$(MAKE) observability-connect-kind" not in makefile:
+            raise ValueError("make observability-up must restore the kind network attachment after Compose recreation")
         platform_status = (ROOT / "scripts/platform-status.sh").read_text(encoding="utf-8")
         if "pg_up" not in platform_status or "postgres-exporter" not in platform_status:
             raise ValueError("Platform status must validate PostgreSQL exporter and database health")
