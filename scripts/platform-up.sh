@@ -4,11 +4,10 @@ set -Eeuo pipefail
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 readonly TARGET_DIR="${REPO_ROOT}/.runtime/prometheus-targets"
-readonly KUBE_NODE="kaviont-local-control-plane"
 
 cd "${REPO_ROOT}"
 
-for command in docker kind kubectl make; do
+for command in docker kind kubectl make curl python3; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     echo "${command} is required but was not found on PATH." >&2
     exit 1
@@ -60,6 +59,22 @@ for service in prometheus blackbox-exporter; do
     docker network connect kind "${container_id}"
   fi
 done
+
+echo "==> Waiting for Prometheus to scrape the Kubernetes Collector and readiness probe."
+targets_ready=false
+for attempt in $(seq 1 30); do
+  if curl --fail --silent "http://127.0.0.1:9090/api/v1/targets?state=active" \
+    | python3 -c 'import json,sys; data=json.load(sys.stdin)["data"]["activeTargets"]; targets=[t for t in data if t["labels"].get("platform") == "kubernetes"]; sys.exit(0 if len(targets) == 2 and all(t["health"] == "up" for t in targets) else 1)'; then
+    targets_ready=true
+    break
+  fi
+  sleep 2
+done
+
+if [[ "${targets_ready}" != "true" ]]; then
+  echo "Prometheus could not confirm both Kubernetes targets. Inspect make platform-status and Docker network connectivity." >&2
+  exit 1
+fi
 
 echo
 echo "Kaviont local platform is ready."
