@@ -286,7 +286,7 @@ def main() -> int:
         required_services = {
             "otel-collector", "prometheus", "tempo", "grafana",
             "blackbox-exporter", "alertmanager", "mailpit",
-            "postgres", "market-data-worker",
+            "postgres", "market-data-worker", "adminer",
         }
         for name in required_services:
             service = services.get(name)
@@ -306,6 +306,15 @@ def main() -> int:
             raise ValueError("Compose PostgreSQL service must mount the initial schema")
         if services["postgres"].get("healthcheck") is None:
             raise ValueError("Compose PostgreSQL service must expose a health check")
+        adminer_service = services["adminer"]
+        if adminer_service.get("environment", {}).get("ADMINER_DEFAULT_SERVER") != "postgres":
+            raise ValueError("Adminer must default to the Compose PostgreSQL service")
+        if "127.0.0.1:8085:8080" not in {
+            str(port) for port in adminer_service.get("ports", [])
+        }:
+            raise ValueError("Adminer must bind its web UI to localhost on port 8085")
+        if adminer_service.get("depends_on", {}).get("postgres", {}).get("condition") != "service_healthy":
+            raise ValueError("Adminer must wait for PostgreSQL to become healthy")
         mailpit_service = services.get("mailpit", {})
         if "1025" not in {str(port) for port in mailpit_service.get("expose", [])}:
             raise ValueError("Mailpit must expose its SMTP port to the Compose network")
@@ -322,7 +331,7 @@ def main() -> int:
         if not any(".runtime/prometheus-targets" in str(mount) for mount in services["prometheus"].get("volumes", [])):
             raise ValueError("Prometheus runtime Kubernetes target directory must be mounted")
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-        for target in ("platform-up:", "platform-down:", "platform-status:"):
+        for target in ("platform-up:", "platform-down:", "platform-status:", "database-ui:", "database-ui-down:"):
             if target not in makefile:
                 raise ValueError(f"Makefile is missing the integrated local platform target {target}")
         platform_up = (ROOT / "scripts/platform-up.sh").read_text(encoding="utf-8")
