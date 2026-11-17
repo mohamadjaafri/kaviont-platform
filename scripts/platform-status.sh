@@ -16,8 +16,52 @@ kubectl --context "${KUBE_CONTEXT}" get pods,svc -n kaviont-local
 
 echo
 echo "==> Prometheus Kubernetes targets"
-curl --fail --silent http://127.0.0.1:9090/api/v1/targets?state=active \
-  | python3 -c 'import json,sys; data=json.load(sys.stdin)["data"]["activeTargets"]; targets=[t for t in data if t["labels"].get("platform") == "kubernetes"]; [print("{}: {} - {}".format(t["labels"].get("job", "?"), t["health"], t["scrapeUrl"])) for t in targets]; sys.exit(0 if len(targets) == 2 and all(t["health"] == "up" for t in targets) else 1)'
+prometheus_container="$(docker compose --profile observability ps -q prometheus)"
+if [[ -z "${prometheus_container}" ]]; then
+  echo "Prometheus is not running. Start the integrated stack with 'make platform-up'." >&2
+  exit 1
+fi
 
-curl --fail --silent 'http://127.0.0.1:9090/api/v1/query?query=probe_success%7Bplatform%3D%22kubernetes%22%2Cprobe%3D%22readiness%22%7D' \
-  | python3 -c 'import json,sys; results=json.load(sys.stdin)["data"]["result"]; value=float(results[0]["value"][1]) if results else 0; print("Kubernetes API readiness: " + ("UP" if value == 1 else "DOWN")); sys.exit(0 if value == 1 else 1)'
+if ! targets_json="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:9090/api/v1/targets?state=active)"; then
+  echo "Prometheus API is not reachable on http://127.0.0.1:9090." >&2
+  exit 1
+fi
+
+python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+if payload.get("status") != "success":
+    print("Prometheus returned an unsuccessful API response.", file=sys.stderr)
+    raise SystemExit(1)
+
+targets = [
+    target
+    for target in payload.get("data", {}).get("activeTargets", [])
+    if target.get("labels", {}).get("platform") == "kubernetes"
+]
+for target in targets:
+    labels = target.get("labels", {})
+    print(
+        "{}: {} - {}".format(
+            labels.get("job", "?"),
+            target.get("health", "unknown"),
+            target.get("scrapeUrl", "?"),
+        )
+    )
+
+if len(targets) != 2:
+    print(
+        "Expected 2 Kubernetes targets but found {}. Check make platform-up and Prometheus file discovery.".format(len(targets)),
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+if any(target.get("health") != "up" for target in targets):
+    print("One or more Kubernetes Prometheus targets are not UP.", file=sys.stderr)
+    raise SystemExit(1)
+' <<< "${targets_json}"
+
+echo
+echo "Kaviont local platform checks passed."
