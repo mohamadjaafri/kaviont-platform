@@ -18,6 +18,11 @@ workloadIdentity:
   keyVaultUrl: ""
   secretName: platform-demo-token
 
+telemetry:
+  enabled: false
+  serviceName: hello-api
+  otlpEndpoint: ""
+
 marketData:
   enabled: false
   pollIntervalSeconds: 60
