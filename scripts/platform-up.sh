@@ -76,6 +76,24 @@ if [[ "${targets_ready}" != "true" ]]; then
   exit 1
 fi
 
+echo "==> Waiting for postgres_exporter to report a healthy database connection."
+postgres_ready=false
+for attempt in $(seq 1 30); do
+  if curl --fail --silent --get --data-urlencode 'query=pg_up{job="postgres-exporter"}' \
+      http://127.0.0.1:9090/api/v1/query \
+    | python3 -c 'import json,sys; result=json.load(sys.stdin)["data"]["result"]; sys.exit(0 if len(result) == 1 and result[0]["value"][1] == "1" else 1)'; then
+    postgres_ready=true
+    break
+  fi
+  sleep 2
+done
+
+if [[ "${postgres_ready}" != "true" ]]; then
+  echo "postgres_exporter did not report pg_up=1. Inspect its role bootstrap and logs:" >&2
+  docker compose --profile observability logs --no-color postgres-exporter-bootstrap postgres-exporter >&2 || true
+  exit 1
+fi
+
 echo
 echo "Kaviont local platform is ready."
 echo "Kubernetes API: use 'make local-forward' then http://127.0.0.1:8081"
@@ -84,5 +102,6 @@ echo "Prometheus:     http://127.0.0.1:9090/targets"
 echo "Alertmanager:   http://127.0.0.1:9093"
 echo "Mailpit:        http://127.0.0.1:8025"
 echo "Adminer:        http://127.0.0.1:8085"
+echo "PostgreSQL:     monitored by postgres_exporter (Grafana dashboard: Kaviont - PostgreSQL Reliability)"
 echo
 echo "Run 'make platform-status' to inspect Kubernetes resources and Prometheus targets."
