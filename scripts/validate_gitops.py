@@ -18,6 +18,7 @@ ALLOWED_RESOURCES = {
     ("apps", "Deployment"),
     ("", "Service"),
     ("", "ServiceAccount"),
+    ("", "ConfigMap"),
     ("autoscaling", "HorizontalPodAutoscaler"),
     ("policy", "PodDisruptionBudget"),
     ("networking.k8s.io", "NetworkPolicy"),
@@ -125,12 +126,47 @@ def main() -> int:
         validate_application(local_application, "kaviont-local", "kaviont-local", "values-local.yaml")
         validate_kustomization(
             LOCAL_DIR / "kustomization.yaml",
-            {"app-project.yaml", "hello-api-application.yaml"},
+            {"app-project.yaml", "hello-api-application.yaml", "otel-collector-application.yaml"},
         )
+
+        # The local telemetry Collector is a separate, namespaced Argo CD application.
+        collector_application = load_yaml(LOCAL_DIR / "otel-collector-application.yaml")
+        collector_spec = collector_application.get("spec", {})
+        require(collector_application.get("kind") == "Application", "Local Collector must be an Argo CD Application.")
+        require(collector_application.get("metadata", {}).get("namespace") == "argocd", "Local Collector Application must live in argocd.")
+        require(collector_spec.get("project") == "kaviont-local", "Local Collector must use the restricted local AppProject.")
+        require(collector_spec.get("source", {}).get("repoURL") == REPO_URL, "Local Collector source repository is incorrect.")
+        require(collector_spec.get("source", {}).get("targetRevision") == "main", "Local Collector must track main.")
+        require(collector_spec.get("source", {}).get("path") == "gitops/argocd/local/otel-collector", "Local Collector path is incorrect.")
+        require(collector_spec.get("destination", {}).get("namespace") == "kaviont-local", "Local Collector must deploy to kaviont-local.")
+        collector_kustomization = load_yaml(LOCAL_DIR / "otel-collector" / "kustomization.yaml")
+        require(
+            collector_kustomization.get("kind") == "Kustomization"
+            and set(collector_kustomization.get("resources", [])) == {
+                "collector-config.yaml", "collector-deployment.yaml", "collector-services.yaml"
+            },
+            "Local Collector Kustomize resources are incomplete.",
+        )
+        collector_config_resource = load_yaml(LOCAL_DIR / "otel-collector" / "collector-config.yaml")
+        collector_config = yaml.safe_load(collector_config_resource.get("data", {}).get("collector-config.yaml", ""))
+        require(collector_config.get("service", {}).get("pipelines", {}).get("metrics", {}).get("exporters") == ["prometheus"], "Local Collector must export Kubernetes metrics to Prometheus.")
+        collector_services = list(yaml.safe_load_all((LOCAL_DIR / "otel-collector" / "collector-services.yaml").read_text(encoding="utf-8")))
+        require(any(service.get("metadata", {}).get("name") == "otel-collector" and service.get("spec", {}).get("type") == "ClusterIP" for service in collector_services), "Local Collector OTLP endpoint must be a ClusterIP service.")
+        require(any(
+            service.get("metadata", {}).get("name") == "otel-collector-metrics"
+            and service.get("spec", {}).get("type") == "NodePort"
+            and service.get("spec", {}).get("ports", [{}])[0].get("nodePort") == 30089
+            for service in collector_services
+        ), "Local Collector Prometheus endpoint must use NodePort 30089.")
 
         require(local_values.get("image", {}).get("repository") == "kaviont/hello-api", "Local values must use the local image.")
         require(local_values.get("image", {}).get("tag") == "local", "Local values must use the local image tag.")
         require(local_values.get("image", {}).get("pullPolicy") == "Never", "Local values must never pull the image from a registry.")
+        require(local_values.get("telemetry", {}).get("enabled") is True, "Local Kubernetes API must export telemetry.")
+        require(local_values.get("telemetry", {}).get("serviceName") == "hello-api-kubernetes", "Local Kubernetes API must have a distinct telemetry service name.")
+        require(local_values.get("telemetry", {}).get("otlpEndpoint") == "http://otel-collector.kaviont-local.svc.cluster.local:4317", "Local Kubernetes API OTLP endpoint is incorrect.")
+        require(local_values.get("service", {}).get("type") == "NodePort", "Local Kubernetes API must be reachable through its internal NodePort.")
+        require(local_values.get("service", {}).get("nodePort") == 30081, "Local Kubernetes API NodePort must be 30081.")
         require(local_values.get("workloadIdentity", {}).get("enabled") is False, "Local values must disable Azure Workload Identity.")
         require(local_values.get("localSecret", {}).get("enabled") is True, "Local values must use the local-only test secret.")
         require(local_values.get("marketData", {}).get("enabled") is False, "Local kind profile must not start market-data without a shared database.")
