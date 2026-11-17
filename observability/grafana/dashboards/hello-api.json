@@ -454,7 +454,7 @@
       },
       "targets": [
         {
-          "expr": "kaviont_process_cpu_usage_ratio",
+          "expr": "kaviont_process_cpu_usage_ratio{process_name=\"hello-api\"}",
           "legendFormat": "CPU utilization",
           "refId": "A"
         }
@@ -492,7 +492,7 @@
       },
       "targets": [
         {
-          "expr": "kaviont_process_memory_usage_bytes",
+          "expr": "kaviont_process_memory_usage_bytes{process_name=\"hello-api\"}",
           "legendFormat": "RSS",
           "refId": "A"
         }

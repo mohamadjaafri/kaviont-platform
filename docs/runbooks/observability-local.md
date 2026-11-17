@@ -19,6 +19,12 @@ Kaviont's local operations profile is an optional Docker Compose stack. It demon
 
     make observability-up
 
+The observability target sets the API OTLP endpoint to `http://otel-collector:4317` and explicitly recreates the API container so an older container with telemetry disabled cannot remain in service. Verify the runtime setting:
+
+    docker compose --profile observability exec hello-api sh -lc 'printf "OTEL_EXPORTER_OTLP_ENDPOINT=%s\\n" "${OTEL_EXPORTER_OTLP_ENDPOINT:-EMPTY}"'
+
+Expected value: `http://otel-collector:4317`.
+
 Wait until the containers are running:
 
     docker compose --profile observability ps
@@ -135,7 +141,9 @@ Restart it afterward:
 
 The example availability objective is 99.9% over a rolling 30-day window. The error budget is therefore 0.1% of observed requests. The dashboard calculates the remaining budget from the ratio of 5xx responses to all instrumented HTTP requests.
 
-This is a request-based availability example, not a contractual SLA. It does not yet exclude selected routes or define user journeys. The readiness probe is a separate synthetic health signal and is not used in the request-based SLO calculation.
+The local fault-injection route `/__test__/error` is excluded from request rate, error ratio, latency, availability, and error-budget burn calculations. It exists to exercise alert delivery and must not permanently consume the service's SLO error budget. Other API routes remain part of the request-based calculation.
+
+This is a request-based availability example, not a contractual SLA. It does not define user journeys. The readiness probe is a separate synthetic health signal and is not used in the request-based SLO calculation.
 
 ## Stop
 

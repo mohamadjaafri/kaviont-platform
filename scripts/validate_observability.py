@@ -210,6 +210,8 @@ def main() -> int:
                 raise ValueError(f"HTTP SLO rules must use the exported metric {metric_name}")
         if 'http_status_code=~"5.."' not in all_rule_expressions:
             raise ValueError("HTTP error rules must filter the exported http_status_code label")
+        if 'http_target!="/__test__/error"' not in all_rule_expressions:
+            raise ValueError("HTTP SLO rules must exclude the local fault-injection route")
         obsolete_http_identifiers = (
             "kaviont_http_server_request_duration_seconds",
             "http_response_status_code",
@@ -227,6 +229,8 @@ def main() -> int:
             raise ValueError("Prometheus rule tests must include synthetic HTTP 500 traffic")
         if not any('http_status_code="200"' in series for series in test_series):
             raise ValueError("Prometheus rule tests must include healthy HTTP 200 traffic")
+        if not any('http_target="/__test__/error"' in series for series in test_series):
+            raise ValueError("Prometheus rule tests must cover the local fault-injection route")
 
         latency_alert = next(
             rule for group in groups for rule in group.get("rules", [])
@@ -234,6 +238,19 @@ def main() -> int:
         )
         if "kaviont:http_latency:p95_5m > 500" not in str(latency_alert.get("expr", "")):
             raise ValueError("The p95 alert threshold must use milliseconds (500 ms)")
+
+        process_cpu_alert = next(
+            rule for group in groups for rule in group.get("rules", [])
+            if rule.get("alert") == "KaviontProcessCPUHigh"
+        )
+        process_memory_alert = next(
+            rule for group in groups for rule in group.get("rules", [])
+            if rule.get("alert") == "KaviontProcessMemoryHigh"
+        )
+        if 'process_name="hello-api"' not in str(process_cpu_alert.get("expr", "")):
+            raise ValueError("API CPU alert must select the hello-api process")
+        if 'process_name="hello-api"' not in str(process_memory_alert.get("expr", "")):
+            raise ValueError("API memory alert must select the hello-api process")
 
         financial_recordings = {
             rule.get("record")
@@ -270,6 +287,12 @@ def main() -> int:
         }
         if not required_panels.issubset(panel_titles):
             raise ValueError("Grafana operations dashboard is missing required panels")
+        process_cpu_panel = next(panel for panel in dashboard.get("panels", []) if panel.get("title") == "API Process CPU")
+        process_memory_panel = next(panel for panel in dashboard.get("panels", []) if panel.get("title") == "API Process Memory · Resident Set")
+        if 'process_name="hello-api"' not in process_cpu_panel.get("targets", [{}])[0].get("expr", ""):
+            raise ValueError("Grafana API CPU panel must select the hello-api process")
+        if 'process_name="hello-api"' not in process_memory_panel.get("targets", [{}])[0].get("expr", ""):
+            raise ValueError("Grafana API memory panel must select the hello-api process")
 
         latency_panels = [
             panel for panel in dashboard.get("panels", [])
