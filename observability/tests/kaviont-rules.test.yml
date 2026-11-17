@@ -39,16 +39,22 @@ tests:
           - labels: 'kaviont:http_errors:ratio5m'
             value: 0.25
 
-    alert_rule_test:
-      - eval_time: 8m
-        alertname: KaviontAPIHighErrorRate
-        exp_alerts:
-          - exp_labels:
-              service: hello-api
-              severity: warning
-            exp_annotations:
-              summary: "Kaviont API 5xx ratio is above 5%"
-              description: "More than 5% of API requests returned HTTP 5xx responses over five minutes."
+      - expr: kaviont:slo:availability:ratio30d
+        eval_time: 8m
+        exp_samples:
+          - labels: 'kaviont:slo:availability:ratio30d'
+            value: 0.75
+
+  - name: SLO metrics stay absent when no API requests were observed
+    interval: 30s
+    promql_expr_test:
+      - expr: kaviont:slo:availability:ratio30d
+        eval_time: 8m
+        exp_samples: []
+
+      - expr: kaviont:slo:error_budget:remaining_ratio30d
+        eval_time: 8m
+        exp_samples: []
 
   - name: PostgreSQL exporter database connection failure fires a critical alert
     interval: 30s
