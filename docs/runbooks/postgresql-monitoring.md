@@ -37,7 +37,7 @@ The Compose dependency ensures the monitoring role bootstrap completes before th
 
 The exporter password is separate from `POSTGRES_PASSWORD`. Set `POSTGRES_EXPORTER_PASSWORD` in the ignored local `.env` file to override the local default `kaviont-exporter-local-only`. Never commit a real local password.
 
-The monitoring account has the PostgreSQL built-in `pg_monitor` role, which permits access to PostgreSQL monitoring views and settings. The exporter port is not published on the host.
+The monitoring account has the PostgreSQL built-in `pg_monitor` role, which permits access to PostgreSQL monitoring views and settings. The exporter receives its connection endpoint through `DATA_SOURCE_URI=postgres:5432/postgres?sslmode=disable` and credentials through `DATA_SOURCE_USER` and `DATA_SOURCE_PASS`, as required by postgres_exporter v0.20.1. The exporter port is not published on the host.
 
 ## Verification
 
