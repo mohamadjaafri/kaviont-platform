@@ -408,9 +408,12 @@ def main() -> int:
         exporter_service = services["postgres-exporter"]
         if exporter_service.get("image") != "prometheuscommunity/postgres-exporter:v0.20.1":
             raise ValueError("PostgreSQL exporter image must be pinned to the reviewed v0.20.1 release")
-        if "--datasource.uri=postgres:5432/postgres?sslmode=disable" not in exporter_service.get("command", []):
-            raise ValueError("PostgreSQL exporter must connect through the internal Compose PostgreSQL service")
-        if exporter_service.get("environment", {}).get("DATA_SOURCE_USER") != "postgres_exporter":
+        exporter_environment = exporter_service.get("environment", {})
+        if exporter_environment.get("DATA_SOURCE_URI") != "postgres:5432/postgres?sslmode=disable":
+            raise ValueError("PostgreSQL exporter must use DATA_SOURCE_URI for the internal Compose PostgreSQL service")
+        if "command" in exporter_service:
+            raise ValueError("PostgreSQL exporter connection URI must be configured through the documented environment variable")
+        if exporter_environment.get("DATA_SOURCE_USER") != "postgres_exporter":
             raise ValueError("PostgreSQL exporter must use its dedicated monitoring role")
         if exporter_service.get("depends_on", {}).get("postgres-exporter-bootstrap", {}).get("condition") != "service_completed_successfully":
             raise ValueError("PostgreSQL exporter must wait for its monitoring role bootstrap")

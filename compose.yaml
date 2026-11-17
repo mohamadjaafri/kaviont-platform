@@ -142,9 +142,8 @@ services:
   postgres-exporter:
     profiles: ["observability"]
     image: prometheuscommunity/postgres-exporter:v0.20.1
-    command:
-      - --datasource.uri=postgres:5432/postgres?sslmode=disable
     environment:
+      DATA_SOURCE_URI: postgres:5432/postgres?sslmode=disable
       DATA_SOURCE_USER: postgres_exporter
       DATA_SOURCE_PASS: ${POSTGRES_EXPORTER_PASSWORD:-kaviont-exporter-local-only}
     expose:
