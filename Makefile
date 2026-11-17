@@ -3,7 +3,7 @@ TF_DIR := infrastructure/terraform/environments/dev
 APP_DIR := workloads/hello-api
 CHART_DIR := charts/hello-api
 
-.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check prometheus-check observability-check email-delivery-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-down observability-logs database-ui database-ui-down platform-up platform-down platform-status
+.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check prometheus-check observability-check email-delivery-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-connect-kind observability-down observability-logs database-ui database-ui-down platform-up platform-down platform-status
 
 fmt:
 	terraform fmt -recursive infrastructure/terraform
@@ -29,7 +29,7 @@ helm-check:
 
 gitops-check:
 	python -m pip install "PyYAML>=6,<7"
-	bash -n scripts/platform-up.sh scripts/platform-down.sh scripts/platform-status.sh scripts/local-up.sh scripts/bootstrap-postgres-exporter-role.sh
+	bash -n scripts/platform-up.sh scripts/platform-down.sh scripts/platform-status.sh scripts/local-up.sh scripts/bootstrap-postgres-exporter-role.sh scripts/connect-observability-to-kind.sh
 	python scripts/validate_gitops.py
 	$(MAKE) observability-check
 	helm lint $(CHART_DIR) --values $(CHART_DIR)/values-gitops.yaml.example
@@ -94,6 +94,11 @@ observability-up:
 	@test -f .runtime/prometheus-targets/kubernetes-readiness.yml || printf '[]\n' > .runtime/prometheus-targets/kubernetes-readiness.yml
 	OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 docker compose --profile observability up --build -d
 	OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 docker compose --profile observability up -d --force-recreate hello-api
+	$(MAKE) observability-connect-kind
+
+# Reattach Compose observability containers after recreation so they can resolve kind node DNS.
+observability-connect-kind:
+	bash scripts/connect-observability-to-kind.sh
 
 # Browser-based PostgreSQL administration. Starts only the database and Adminer.
 database-ui:
