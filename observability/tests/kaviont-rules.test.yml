@@ -1,10 +1,13 @@
 rule_files:
   - ../rules/kaviont.yml
+  - ../rules/postgresql.yml
 
 evaluation_interval: 30s
 group_eval_order:
   - kaviont-recording-rules
   - kaviont-alert-rules
+  - kaviont-postgresql-recording-rules
+  - kaviont-postgresql-alert-rules
 
 tests:
   - name: sustained HTTP 5xx traffic records the error ratio and fires an alert
@@ -38,3 +41,40 @@ tests:
             exp_annotations:
               summary: "Kaviont API 5xx ratio is above 5%"
               description: "More than 5% of API requests returned HTTP 5xx responses over five minutes."
+
+  - name: PostgreSQL exporter database connection failure fires a critical alert
+    interval: 30s
+    input_series:
+      - series: 'pg_up{job="postgres-exporter"}'
+        values: '0+0x8'
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: KaviontPostgreSQLUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: postgres-exporter
+              service: postgresql
+              severity: critical
+            exp_annotations:
+              summary: "Kaviont PostgreSQL exporter cannot connect to the database"
+              description: "The PostgreSQL exporter reports pg_up=0 for at least one minute."
+
+  - name: PostgreSQL connection utilization above 80 percent fires a warning
+    interval: 30s
+    input_series:
+      - series: 'pg_stat_database_numbackends{datname="kaviont"}'
+        values: '90+0x16'
+      - series: 'pg_settings_max_connections'
+        values: '100+0x16'
+
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: KaviontPostgreSQLConnectionsHigh
+        exp_alerts:
+          - exp_labels:
+              service: postgresql
+              severity: warning
+            exp_annotations:
+              summary: "Kaviont PostgreSQL connection utilization is above 80%"
+              description: "More than 80% of configured PostgreSQL connections have been used for at least five minutes."
