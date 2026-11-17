@@ -18,7 +18,6 @@ ALLOWED_RESOURCES = {
     ("apps", "Deployment"),
     ("", "Service"),
     ("", "ServiceAccount"),
-    ("", "ConfigMap"),
     ("autoscaling", "HorizontalPodAutoscaler"),
     ("policy", "PodDisruptionBudget"),
     ("networking.k8s.io", "NetworkPolicy"),
@@ -40,7 +39,12 @@ def require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
-def validate_project(project: dict, name: str, namespace: str) -> None:
+def validate_project(
+    project: dict,
+    name: str,
+    namespace: str,
+    allowed_resources: set[tuple[str, str]] = ALLOWED_RESOURCES,
+) -> None:
     require(project.get("apiVersion") == "argoproj.io/v1alpha1", f"{name} AppProject apiVersion is incorrect.")
     require(project.get("kind") == "AppProject", f"{name} must be an AppProject.")
     spec = project.get("spec", {})
@@ -54,7 +58,7 @@ def validate_project(project: dict, name: str, namespace: str) -> None:
         (item.get("group", ""), item.get("kind", ""))
         for item in spec.get("namespaceResourceWhitelist", [])
     }
-    require(configured == ALLOWED_RESOURCES, f"{name} AppProject resource allowlist does not match the workload chart.")
+    require(configured == allowed_resources, f"{name} AppProject resource allowlist does not match the workload chart.")
 
 
 def validate_application(application: dict, project_name: str, namespace: str, values_file: str) -> None:
@@ -122,7 +126,7 @@ def main() -> int:
         local_project = load_yaml(LOCAL_DIR / "app-project.yaml")
         local_application = load_yaml(LOCAL_DIR / "hello-api-application.yaml")
         local_values = load_yaml(CHART_DIR / "values-local.yaml")
-        validate_project(local_project, "Local", "kaviont-local")
+        validate_project(local_project, "Local", "kaviont-local", LOCAL_ALLOWED_RESOURCES)
         validate_application(local_application, "kaviont-local", "kaviont-local", "values-local.yaml")
         validate_kustomization(
             LOCAL_DIR / "kustomization.yaml",
