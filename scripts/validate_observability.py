@@ -51,11 +51,11 @@ def main() -> int:
             raise ValueError("Prometheus must scrape Compose and Kubernetes telemetry and readiness")
         kube_otel_job = next(job for job in scrape_configs if job.get("job_name") == "otel-collector-kubernetes")
         kube_readiness_job = next(job for job in scrape_configs if job.get("job_name") == "hello-api-kubernetes-readiness")
-        if "/etc/prometheus/targets/kubernetes-otel.yml" not in [
+        if "/prometheus-targets/kubernetes-otel.yml" not in [
             file for group in kube_otel_job.get("file_sd_configs", []) for file in group.get("files", [])
         ]:
             raise ValueError("Kubernetes Collector must use a runtime file-discovery target")
-        if "/etc/prometheus/targets/kubernetes-readiness.yml" not in [
+        if "/prometheus-targets/kubernetes-readiness.yml" not in [
             file for group in kube_readiness_job.get("file_sd_configs", []) for file in group.get("files", [])
         ]:
             raise ValueError("Kubernetes readiness must use a runtime file-discovery target")
