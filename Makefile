@@ -3,7 +3,7 @@ TF_DIR := infrastructure/terraform/environments/dev
 APP_DIR := workloads/hello-api
 CHART_DIR := charts/hello-api
 
-.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check prometheus-check observability-check email-delivery-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-down observability-logs platform-up platform-down platform-status
+.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check prometheus-check observability-check email-delivery-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-down observability-logs database-ui database-ui-down platform-up platform-down platform-status
 
 fmt:
 	terraform fmt -recursive infrastructure/terraform
@@ -93,6 +93,13 @@ observability-up:
 	@test -f .runtime/prometheus-targets/kubernetes-otel.yml || printf '[]\n' > .runtime/prometheus-targets/kubernetes-otel.yml
 	@test -f .runtime/prometheus-targets/kubernetes-readiness.yml || printf '[]\n' > .runtime/prometheus-targets/kubernetes-readiness.yml
 	OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 docker compose --profile observability up --build -d
+
+# Browser-based PostgreSQL administration. Starts only the database and Adminer.
+database-ui:
+	docker compose --profile observability up -d postgres adminer
+
+database-ui-down:
+	docker compose --profile observability stop adminer
 
 observability-down:
 	docker compose --profile observability down --remove-orphans

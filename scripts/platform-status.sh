@@ -5,6 +5,12 @@ readonly KUBE_CONTEXT="kind-kaviont-local"
 
 echo "==> Docker Compose observability services"
 docker compose --profile observability ps
+adminer_container="$(docker compose --profile observability ps -q adminer)"
+if [[ -z "${adminer_container}" ]]; then
+  echo "Adminer is not running. Start it with 'make database-ui'."
+else
+  echo "Adminer UI: http://127.0.0.1:8085"
+fi
 
 echo
 echo "==> Argo CD applications"
