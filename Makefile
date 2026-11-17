@@ -29,7 +29,7 @@ helm-check:
 
 gitops-check:
 	python -m pip install "PyYAML>=6,<7"
-	bash -n scripts/platform-up.sh scripts/platform-down.sh scripts/platform-status.sh scripts/local-up.sh
+	bash -n scripts/platform-up.sh scripts/platform-down.sh scripts/platform-status.sh scripts/local-up.sh scripts/bootstrap-postgres-exporter-role.sh
 	python scripts/validate_gitops.py
 	$(MAKE) observability-check
 	helm lint $(CHART_DIR) --values $(CHART_DIR)/values-gitops.yaml.example
@@ -42,7 +42,7 @@ prometheus-check:
 	@test -f .runtime/prometheus-targets/kubernetes-otel.yml || printf '[]\n' > .runtime/prometheus-targets/kubernetes-otel.yml
 	@test -f .runtime/prometheus-targets/kubernetes-readiness.yml || printf '[]\n' > .runtime/prometheus-targets/kubernetes-readiness.yml
 	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --volume "$(CURDIR)/.runtime/prometheus-targets:/prometheus-targets:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yaml
-	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check rules /etc/prometheus/rules/kaviont.yml /etc/prometheus/rules/financial.yml
+	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --entrypoint=/bin/promtool prom/prometheus:v2.55.1 check rules /etc/prometheus/rules/kaviont.yml /etc/prometheus/rules/financial.yml /etc/prometheus/rules/postgresql.yml
 	docker run --rm --volume "$(CURDIR)/observability:/etc/prometheus:ro" --workdir /etc/prometheus --entrypoint=/bin/promtool prom/prometheus:v2.55.1 test rules tests/kaviont-rules.test.yml
 
 observability-check:
