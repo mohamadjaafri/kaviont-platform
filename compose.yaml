@@ -122,6 +122,38 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  postgres-exporter-bootstrap:
+    profiles: ["observability"]
+    image: postgres:17.5-alpine
+    entrypoint: ["/bin/sh", "/scripts/bootstrap-postgres-exporter-role.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-kaviont}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-kaviont-local-only}
+      PGDATABASE: postgres
+      POSTGRES_EXPORTER_PASSWORD: ${POSTGRES_EXPORTER_PASSWORD:-kaviont-exporter-local-only}
+    volumes:
+      - ./scripts/bootstrap-postgres-exporter-role.sh:/scripts/bootstrap-postgres-exporter-role.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  postgres-exporter:
+    profiles: ["observability"]
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    command:
+      - --datasource.uri=postgres:5432/postgres?sslmode=disable
+    environment:
+      DATA_SOURCE_USER: postgres_exporter
+      DATA_SOURCE_PASS: ${POSTGRES_EXPORTER_PASSWORD:-kaviont-exporter-local-only}
+    expose:
+      - "9187"
+    depends_on:
+      postgres-exporter-bootstrap:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   hello-api-test:
     profiles: ["test"]
     image: kaviont/hello-api:test
