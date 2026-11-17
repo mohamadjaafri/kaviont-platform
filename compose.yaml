@@ -110,6 +110,18 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  adminer:
+    profiles: ["observability"]
+    image: adminer:6.3.0-standalone
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    ports:
+      - "127.0.0.1:8085:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   hello-api-test:
     profiles: ["test"]
     image: kaviont/hello-api:test
