@@ -23,6 +23,8 @@ ALLOWED_RESOURCES = {
     ("networking.k8s.io", "NetworkPolicy"),
 }
 
+LOCAL_ALLOWED_RESOURCES = ALLOWED_RESOURCES | {("", "ConfigMap")}
+
 
 def load_yaml(path: Path) -> dict:
     try:
