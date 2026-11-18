@@ -294,7 +294,7 @@ def main() -> int:
             "Kubernetes API Latency · p95",
             "API Process CPU",
             "API Process Memory · Resident Set",
-            "Distributed Traces · hello-api",
+            "Distributed Traces · API Services",
         }
         if not required_panels.issubset(panel_titles):
             raise ValueError("Grafana operations dashboard is missing required panels")
