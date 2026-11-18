@@ -141,7 +141,8 @@ def test_market_dashboard_serves_its_static_assets() -> None:
     response = client.get("/market/assets/market.js")
 
     assert response.status_code == 200
-    assert "v1/market/kraken/history" in response.text
+    assert 'const API = "/v1/market/kraken"' in response.text
+    assert 'getJson(API + "/history?"' in response.text
     assert "setInterval" in response.text
 
 
