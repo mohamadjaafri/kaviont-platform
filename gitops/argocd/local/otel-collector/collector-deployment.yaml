@@ -29,6 +29,12 @@ spec:
           image: otel/opentelemetry-collector-contrib:0.120.0
           args:
             - --config=/conf/collector-config.yaml
+          env:
+            - name: TEMPO_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: otel-collector-runtime
+                  key: tempo_otlp_endpoint
           ports:
             - name: otlp-grpc
               containerPort: 4317

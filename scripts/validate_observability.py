@@ -42,6 +42,17 @@ def main() -> int:
         compose = load_yaml(ROOT / "compose.yaml")
 
         pipelines = collector["service"]["pipelines"]
+        trace_panels = [
+            panel for panel in dashboard.get("panels", [])
+            if panel.get("id") == 11 and panel.get("type") == "traces"
+        ]
+        if len(trace_panels) != 1:
+            raise ValueError("Operations dashboard must contain exactly one distributed-traces panel")
+        trace_targets = trace_panels[0].get("targets", [])
+        if len(trace_targets) != 1 or trace_targets[0].get("query") != '{ resource.service.name =~ "hello-api(-kubernetes)?" }':
+            raise ValueError("Distributed-traces panel must include both Compose and Kubernetes API services")
+        if trace_panels[0].get("title") != "Distributed Traces · API Services":
+            raise ValueError("Distributed-traces panel title must describe both API services")
         if set(pipelines) != {"metrics", "traces"}:
             raise ValueError("Collector must define metrics and traces pipelines")
         if "prometheus" not in pipelines["metrics"]["exporters"]:
@@ -471,8 +482,9 @@ def main() -> int:
             if required not in platform_up:
                 raise ValueError(f"Integrated platform startup is missing: {required}")
         network_helper = (ROOT / "scripts/connect-observability-to-kind.sh").read_text(encoding="utf-8")
-        if "docker network connect kind" not in network_helper:
-            raise ValueError("Observability network helper must connect Compose services to the kind Docker network")
+        for required in ("docker network connect kind", "prometheus blackbox-exporter tempo", ".IPAddress", "otel-collector-runtime", "tempo_otlp_endpoint", "rollout restart deployment/otel-collector"):
+            if required not in network_helper:
+                raise ValueError(f"Observability network helper is missing Tempo integration behavior: {required}")
         if "$(MAKE) observability-connect-kind" not in makefile:
             raise ValueError("make observability-up must restore the kind network attachment after Compose recreation")
         platform_status = (ROOT / "scripts/platform-status.sh").read_text(encoding="utf-8")

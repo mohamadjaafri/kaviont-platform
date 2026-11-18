@@ -25,6 +25,10 @@ data:
         namespace: kaviont
         resource_to_telemetry_conversion:
           enabled: true
+      otlp/tempo:
+        endpoint: ${env:TEMPO_OTLP_ENDPOINT}
+        tls:
+          insecure: true
       debug:
         verbosity: basic
 
@@ -37,4 +41,4 @@ data:
         traces:
           receivers: [otlp]
           processors: [batch]
-          exporters: [debug]
+          exporters: [otlp/tempo, debug]

@@ -20,6 +20,23 @@ echo
 echo "==> Kubernetes workload and telemetry collector"
 kubectl --context "${KUBE_CONTEXT}" get pods,svc -n kaviont-local
 
+tempo_container="$(docker compose --profile observability ps -q tempo)"
+if [[ -z "${tempo_container}" ]]; then
+  echo "Tempo is not running. Start the integrated stack with 'make platform-up'." >&2
+  exit 1
+fi
+tempo_ip="$(docker inspect --format '{{with index .NetworkSettings.Networks "kind"}}{{.IPAddress}}{{end}}' "${tempo_container}")"
+if [[ -z "${tempo_ip}" ]]; then
+  echo "Tempo is not connected to the kind Docker network. Run 'make observability-connect-kind'." >&2
+  exit 1
+fi
+configured_tempo_endpoint="$(kubectl --context "${KUBE_CONTEXT}" -n kaviont-local get configmap otel-collector-runtime -o 'jsonpath={.data.tempo_otlp_endpoint}')"
+if [[ "${configured_tempo_endpoint}" != "${tempo_ip}:4317" ]]; then
+  echo "Kubernetes Collector Tempo endpoint is stale. Run 'make observability-connect-kind'." >&2
+  exit 1
+fi
+echo "Kubernetes trace exporter: ${configured_tempo_endpoint}"
+
 echo
 echo "==> Prometheus Kubernetes targets"
 prometheus_container="$(docker compose --profile observability ps -q prometheus)"

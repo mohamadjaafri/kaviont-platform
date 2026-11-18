@@ -32,6 +32,10 @@ bash "${SCRIPT_DIR}/local-build.sh"
 echo "Preparing local namespaces and an ephemeral, non-production demo secret."
 kubectl --context "${KUBE_CONTEXT}" create namespace argocd --dry-run=client -o yaml | kubectl --context "${KUBE_CONTEXT}" apply -f -
 kubectl --context "${KUBE_CONTEXT}" create namespace kaviont-local --dry-run=client -o yaml | kubectl --context "${KUBE_CONTEXT}" apply -f -
+# The integrated platform startup replaces this placeholder with Tempo's Docker-network IP.
+kubectl --context "${KUBE_CONTEXT}" -n kaviont-local create configmap otel-collector-runtime \
+  --from-literal=tempo_otlp_endpoint=127.0.0.1:4317 \
+  --dry-run=client -o yaml | kubectl --context "${KUBE_CONTEXT}" apply -f -
 kubectl --context "${KUBE_CONTEXT}" -n kaviont-local create secret generic hello-api-local \
   --from-literal=demo-secret="$(openssl rand -hex 32)" \
   --dry-run=client -o yaml | kubectl --context "${KUBE_CONTEXT}" apply -f -

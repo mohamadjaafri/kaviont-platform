@@ -157,6 +157,23 @@ def main() -> int:
         collector_config = yaml.safe_load(collector_config_resource.get("data", {}).get("collector-config.yaml", ""))
         require(collector_config.get("service", {}).get("pipelines", {}).get("metrics", {}).get("exporters") == ["prometheus"], "Local Collector must export Kubernetes metrics to Prometheus.")
         require(collector_config.get("exporters", {}).get("prometheus", {}).get("resource_to_telemetry_conversion", {}).get("enabled") is True, "Local Collector must expose resource labels for Kubernetes-specific Grafana panels.")
+        traces_pipeline = collector_config.get("service", {}).get("pipelines", {}).get("traces", {})
+        require("otlp/tempo" in traces_pipeline.get("exporters", []), "Local Collector must export Kubernetes traces to Tempo.")
+        require(collector_config.get("exporters", {}).get("otlp/tempo", {}).get("endpoint") == "${env:TEMPO_OTLP_ENDPOINT}", "Local Collector Tempo endpoint must come from its runtime environment.")
+        require(collector_config.get("exporters", {}).get("otlp/tempo", {}).get("tls", {}).get("insecure") is True, "Local Collector Tempo exporter must use the local plaintext OTLP endpoint.")
+        collector_deployment = load_yaml(LOCAL_DIR / "otel-collector" / "collector-deployment.yaml")
+        collector_container = next(
+            container for container in collector_deployment.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [])
+            if container.get("name") == "otel-collector"
+        )
+        tempo_endpoint_env = next(
+            (entry for entry in collector_container.get("env", []) if entry.get("name") == "TEMPO_OTLP_ENDPOINT"),
+            {},
+        )
+        tempo_endpoint_ref = tempo_endpoint_env.get("valueFrom", {}).get("configMapKeyRef", {})
+        require(tempo_endpoint_ref.get("name") == "otel-collector-runtime" and tempo_endpoint_ref.get("key") == "tempo_otlp_endpoint", "Local Collector must read its Tempo endpoint from the runtime ConfigMap.")
+        local_up_script = (ROOT / "scripts/local-up.sh").read_text(encoding="utf-8")
+        require("otel-collector-runtime" in local_up_script and "tempo_otlp_endpoint=127.0.0.1:4317" in local_up_script, "Local startup must create the Collector runtime endpoint placeholder.")
         collector_services = list(yaml.safe_load_all((LOCAL_DIR / "otel-collector" / "collector-services.yaml").read_text(encoding="utf-8")))
         require(any(service.get("metadata", {}).get("name") == "otel-collector" and service.get("spec", {}).get("type") == "ClusterIP" for service in collector_services), "Local Collector OTLP endpoint must be a ClusterIP service.")
         require(any(

@@ -518,7 +518,7 @@
     {
       "id": 11,
       "type": "traces",
-      "title": "Distributed Traces · hello-api",
+      "title": "Distributed Traces · API Services",
       "datasource": {
         "type": "tempo",
         "uid": "tempo"
@@ -532,7 +532,7 @@
       "targets": [
         {
           "queryType": "traceql",
-          "query": "{ resource.service.name = \"hello-api\" }",
+          "query": "{ resource.service.name =~ \"hello-api(-kubernetes)?\" }",
           "refId": "A"
         }
       ],
