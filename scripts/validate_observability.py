@@ -44,15 +44,17 @@ def main() -> int:
         pipelines = collector["service"]["pipelines"]
         trace_panels = [
             panel for panel in dashboard.get("panels", [])
-            if panel.get("id") == 11 and panel.get("type") == "traces"
+            if panel.get("id") == 11 and panel.get("type") == "table"
         ]
         if len(trace_panels) != 1:
-            raise ValueError("Operations dashboard must contain exactly one distributed-traces panel")
+            raise ValueError("Operations dashboard must contain exactly one recent API traces table")
         trace_targets = trace_panels[0].get("targets", [])
         if len(trace_targets) != 1 or trace_targets[0].get("query") != '{ resource.service.name =~ "hello-api(-kubernetes)?" }':
-            raise ValueError("Distributed-traces panel must include both Compose and Kubernetes API services")
-        if trace_panels[0].get("title") != "Distributed Traces · API Services":
-            raise ValueError("Distributed-traces panel title must describe both API services")
+            raise ValueError("Recent API traces table must include both Compose and Kubernetes API services")
+        if trace_panels[0].get("title") != "Recent API Traces":
+            raise ValueError("Recent API traces table title is incorrect")
+        if trace_panels[0].get("datasource", {}).get("uid") != "tempo":
+            raise ValueError("Recent API traces table must use the Tempo data source")
         if set(pipelines) != {"metrics", "traces"}:
             raise ValueError("Collector must define metrics and traces pipelines")
         if "prometheus" not in pipelines["metrics"]["exporters"]:

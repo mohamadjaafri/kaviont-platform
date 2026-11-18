@@ -517,8 +517,8 @@
     },
     {
       "id": 11,
-      "type": "traces",
-      "title": "Distributed Traces · API Services",
+      "type": "table",
+      "title": "Recent API Traces",
       "datasource": {
         "type": "tempo",
         "uid": "tempo"
@@ -537,11 +537,25 @@
         }
       ],
       "options": {
-        "showTraceID": true,
-        "spanBar": {
-          "type": "Tag",
-          "tag": "http.route"
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "values": [],
+          "countRows": false
         }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": []
       }
     },
     {
