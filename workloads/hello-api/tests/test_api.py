@@ -128,6 +128,23 @@ def test_health_endpoint() -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_market_dashboard_serves_the_interactive_application() -> None:
+    response = client.get("/market")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "<title>Kaviont Live</title>" in response.text
+    assert "/market/assets/market.js" in response.text
+
+
+def test_market_dashboard_serves_its_static_assets() -> None:
+    response = client.get("/market/assets/market.js")
+
+    assert response.status_code == 200
+    assert "v1/market/kraken/history" in response.text
+    assert "setInterval" in response.text
+
+
 def test_readiness_endpoint() -> None:
     response = client.get("/readyz")
 

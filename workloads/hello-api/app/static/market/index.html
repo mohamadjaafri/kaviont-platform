@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b1016">
+    <meta name="description" content="Kaviont Live market intelligence dashboard">
+    <title>Kaviont Live</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/market/assets/market.css">
+    <script src="/market/assets/market.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/market" aria-label="Kaviont Live home">
+          <span class="brand-mark">K</span>
+          <span class="brand-copy">
+            <strong>KAVIONT</strong>
+            <small>LIVE MARKET INTELLIGENCE</small>
+          </span>
+        </a>
+        <div class="topbar-right">
+          <a class="top-link" href="/docs">API</a>
+          <a class="top-link" href="http://127.0.0.1:3000/d/kaviont-financial-data/kaviont-financial-data-reliability" target="_blank" rel="noreferrer">Reliability</a>
+          <div class="connection-pill" id="connectionPill" data-state="loading">
+            <span class="status-dot"></span>
+            <span id="connectionLabel">Connecting</span>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="page-heading">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span> MARKET WORKSPACE <span class="eyebrow-muted">/ KRAKEN DATA</span></div>
+            <h1>Market <span>overview</span></h1>
+            <p class="page-subtitle">A live view of your tracked markets, powered by Kaviont's market-data pipeline.</p>
+          </div>
+          <div class="page-actions">
+            <div class="updated-copy">
+              <span class="micro-label">LAST SYNC</span>
+              <strong id="lastSync">Waiting for data</strong>
+            </div>
+            <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh market data" title="Refresh now">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M5.6 9a7 7 0 0 1 11.8-2L20 12M4 12l2.6 5a7 7 0 0 0 11.8-2"/></svg>
+            </button>
+            <button class="auto-button is-on" id="autoRefreshButton" type="button" aria-pressed="true">
+              <span class="auto-dot"></span><span>Auto refresh</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="market-focus surface">
+          <div class="focus-main">
+            <div class="instrument-line">
+              <span class="coin-mark" id="coinMark">₿</span>
+              <div>
+                <div class="instrument-name" id="instrumentName">Bitcoin <span>/ BTC</span></div>
+                <div class="instrument-meta"><span id="pairCode">XBTUSD</span><span class="meta-separator">·</span><span>Kraken spot</span><span class="meta-separator">·</span><span id="freshnessLabel">Waiting for snapshot</span></div>
+              </div>
+              <span class="data-state-badge" id="freshnessBadge">—</span>
+            </div>
+            <div class="price-line">
+              <div class="last-price" id="lastPrice">—</div>
+              <div class="change-badge neutral" id="changeBadge">—</div>
+            </div>
+            <p class="price-caption" id="priceCaption">Latest persisted market snapshot</p>
+          </div>
+          <div class="focus-stats">
+            <div class="focus-stat">
+              <span class="micro-label">24H HIGH</span>
+              <strong id="high24">—</strong>
+            </div>
+            <div class="focus-stat">
+              <span class="micro-label">24H LOW</span>
+              <strong id="low24">—</strong>
+            </div>
+            <div class="focus-stat">
+              <span class="micro-label">24H VOLUME</span>
+              <strong id="volume24">—</strong>
+            </div>
+            <div class="focus-stat">
+              <span class="micro-label">BID / ASK</span>
+              <strong id="bidAsk">—</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="stat-grid" aria-label="Market statistics">
+          <article class="stat-card surface">
+            <div class="stat-card-top"><span class="micro-label">PERIOD CHANGE</span><span class="stat-icon green">↗</span></div>
+            <strong id="periodChange">—</strong><span class="stat-foot" id="periodCaption">Selected time range</span>
+          </article>
+          <article class="stat-card surface">
+            <div class="stat-card-top"><span class="micro-label">PERIOD HIGH</span><span class="stat-icon blue">⌃</span></div>
+            <strong id="periodHigh">—</strong><span class="stat-foot" id="periodHighCaption">Selected time range</span>
+          </article>
+          <article class="stat-card surface">
+            <div class="stat-card-top"><span class="micro-label">PERIOD LOW</span><span class="stat-icon violet">⌄</span></div>
+            <strong id="periodLow">—</strong><span class="stat-foot" id="periodLowCaption">Selected time range</span>
+          </article>
+          <article class="stat-card surface">
+            <div class="stat-card-top"><span class="micro-label">SAMPLES STORED</span><span class="stat-icon amber">◷</span></div>
+            <strong id="sampleCount">—</strong><span class="stat-foot">Historical observations</span>
+          </article>
+        </section>
+
+        <section class="workspace-grid">
+          <article class="chart-card surface">
+            <div class="section-heading chart-heading">
+              <div>
+                <div class="section-overline">PRICE PERFORMANCE</div>
+                <h2 id="chartTitle">Bitcoin / US Dollar</h2>
+                <p id="chartSubtitle">Historical snapshots stored by Kaviont</p>
+              </div>
+              <div class="range-switch" role="group" aria-label="Chart time range">
+                <button type="button" data-range="1h">1H</button>
+                <button type="button" data-range="24h" class="active" aria-pressed="true">24H</button>
+                <button type="button" data-range="7d">7D</button>
+              </div>
+            </div>
+            <div class="chart-price-row">
+              <div><span class="micro-label">LATEST OBSERVATION</span><strong id="chartLatest">—</strong></div>
+              <div class="chart-points" id="chartPoints">0 data points</div>
+            </div>
+            <div class="chart-stage" id="chartStage">
+              <svg id="priceChart" viewBox="0 0 1000 310" preserveAspectRatio="none" role="img" aria-label="Historical market price chart">
+                <text x="500" y="150" text-anchor="middle" class="chart-placeholder">Waiting for market history…</text>
+              </svg>
+              <div class="chart-tooltip" id="chartTooltip" aria-hidden="true"></div>
+            </div>
+            <div class="chart-footer">
+              <span><i class="legend-dot"></i> KAVIONT STORED PRICE</span>
+              <span id="chartWindow">—</span>
+            </div>
+          </article>
+
+          <aside class="side-column">
+            <article class="pipeline-card surface">
+              <div class="section-heading compact-heading">
+                <div><div class="section-overline">DATA PIPELINE</div><h2>Worker status</h2></div>
+                <span class="worker-badge" id="workerBadge" data-state="unknown">UNKNOWN</span>
+              </div>
+              <div class="pipeline-row"><span>Provider</span><strong>Kraken</strong></div>
+              <div class="pipeline-row"><span>Polling interval</span><strong id="pollInterval">—</strong></div>
+              <div class="pipeline-row"><span>Last successful update</span><strong id="lastSuccess">—</strong></div>
+              <div class="pipeline-row"><span>Heartbeat age</span><strong id="heartbeatAge">—</strong></div>
+              <div class="pipeline-footnote" id="workerMessage">Waiting for worker telemetry.</div>
+            </article>
+            <article class="tracked-card surface">
+              <div class="section-heading compact-heading">
+                <div><div class="section-overline">YOUR MARKETS</div><h2>Tracked markets</h2></div>
+                <span class="count-badge" id="trackedCount">0</span>
+              </div>
+              <div class="market-list" id="marketList">
+                <div class="list-loading">Loading tracked markets…</div>
+              </div>
+            </article>
+          </aside>
+        </section>
+
+        <div class="notice-bar" id="noticeBar" role="status" aria-live="polite">
+          <span class="notice-icon">i</span>
+          <span id="noticeText">Market values come from persisted Kraken snapshots. Browser refreshes do not trigger exchange requests.</span>
+        </div>
+      </main>
+
+      <footer class="footer">
+        <span>© KAVIONT <span id="currentYear"></span></span>
+        <span>MARKET DATA · PERSISTED SNAPSHOTS · AUTO REFRESH 15S</span>
+        <a href="/v1/market/kraken/status" target="_blank" rel="noreferrer">WORKER API ↗</a>
+      </footer>
+    </div>
+  </body>
+</html>

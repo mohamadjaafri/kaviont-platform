@@ -127,6 +127,14 @@ For a controlled local alert demonstration, generate HTTP 500 responses using:
 
 The fault-injection route is registered only in local/test environments. See docs/runbooks/observability-local.md for setup, expected alert timing, and cleanup. This is a local learning profile, not production monitoring.
 
+## Kaviont Live market experience
+
+The API serves an interactive market application at http://127.0.0.1:8080/market. It uses the existing persisted Kraken ticker, history, summary, and worker-status endpoints; it does not call the exchange directly from the browser or introduce another data store.
+
+The dashboard provides tracked-market selection, price and 24-hour statistics, a historical price chart with 1h/24h/7d ranges, data freshness, worker health, and automatic refresh every 15 seconds. Displayed values update when the market-data worker stores a new snapshot; the worker polls Kraken every 60 seconds by default. The interface is also available through the local Kubernetes API at http://127.0.0.1:8081/market when `make local-forward` is running.
+
+The page is served by FastAPI from the application image, so Docker Compose and the local Kubernetes deployment use the same UI and API origin. No separate frontend container, browser-side exchange credentials, or external asset CDN is required.
+
 ## Validate infrastructure and charts
 
 Terraform and Azure CLI are needed only for the Azure infrastructure workflow. From the repository root:

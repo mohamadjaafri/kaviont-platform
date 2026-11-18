@@ -1,7 +1,10 @@
 import os
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.market_repository import (
     MarketDataNotReady,
@@ -26,7 +29,23 @@ app = FastAPI(
     openapi_url="/openapi.json" if enable_api_docs else None,
 )
 
+MARKET_DASHBOARD_DIR = Path(__file__).resolve().parent / "static" / "market"
+app.mount(
+    "/market/assets",
+    StaticFiles(directory=MARKET_DASHBOARD_DIR / "assets"),
+    name="market-dashboard-assets",
+)
+
 configure_observability(app)
+
+
+@app.get("/market", include_in_schema=False)
+def market_dashboard() -> FileResponse:
+    """Serve the interactive Kaviont Live market dashboard."""
+    return FileResponse(
+        MARKET_DASHBOARD_DIR / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 def get_market_repository() -> MarketDataRepository:
