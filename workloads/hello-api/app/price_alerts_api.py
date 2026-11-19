@@ -18,7 +18,7 @@ router = APIRouter(prefix="/v1/market/kraken", tags=["market-alerts"])
 class PriceAlertCreateRequest(BaseModel):
     pair: str = Field(min_length=5, max_length=12, pattern=r"^[A-Za-z0-9]{5,12}$")
     condition: Literal["above", "below", "percent_up", "percent_down"]
-    threshold: float = Field(gt=0, le=10000)
+    threshold: float = Field(gt=0, le=1000000000000)
 
 
 class PriceAlertUpdateRequest(BaseModel):
@@ -52,6 +52,11 @@ def list_price_alerts() -> dict[str, object]:
 
 @router.post("/alerts", status_code=201)
 def create_price_alert(request: PriceAlertCreateRequest) -> dict[str, object]:
+    if request.condition in {"percent_up", "percent_down"} and request.threshold > 10000:
+        raise HTTPException(
+            status_code=422,
+            detail="percentage threshold must not exceed 10000",
+        )
     if request.condition == "percent_down" and request.threshold >= 100:
         raise HTTPException(
             status_code=422,
