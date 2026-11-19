@@ -12,6 +12,7 @@ from app.market_repository import (
     MarketDataStorageNotConfigured,
 )
 from app.observability import configure_observability
+from app.price_alerts_api import router as price_alerts_router
 from app.secrets import secret_is_configured
 
 environment = os.getenv("KAVIONT_ENV", "production").strip().lower()
@@ -28,6 +29,7 @@ app = FastAPI(
     redoc_url="/redoc" if enable_api_docs else None,
     openapi_url="/openapi.json" if enable_api_docs else None,
 )
+app.include_router(price_alerts_router)
 
 MARKET_DASHBOARD_DIR = Path(__file__).resolve().parent / "static" / "market"
 app.mount(
