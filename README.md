@@ -135,6 +135,9 @@ The dashboard provides tracked-market selection, price and 24-hour statistics, a
 
 The page is served by FastAPI from the application image, so Docker Compose and the local Kubernetes deployment use the same UI and API origin. No separate frontend container, browser-side exchange credentials, or external asset CDN is required.
 
+Kaviont Live also supports persistent dynamic price alerts. You can create absolute price thresholds or percentage moves anchored to the current stored price, pause and resume active rules, remove rules, and inspect trigger history. The market-data worker evaluates active rules after each successful snapshot, so trigger timing follows the configured polling interval. See docs/runbooks/price-alerts.md for the rule lifecycle and API.
+
+
 ## Validate infrastructure and charts
 
 Terraform and Azure CLI are needed only for the Azure infrastructure workflow. From the repository root:
