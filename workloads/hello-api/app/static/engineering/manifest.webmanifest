@@ -1,0 +1,28 @@
+{
+  "id": "/engineering",
+  "name": "Kaviont Engineering Platform",
+  "short_name": "Kaviont",
+  "description": "Repository, DevSecOps, delivery and Kubernetes intelligence.",
+  "start_url": "/engineering?source=installed-app",
+  "scope": "/engineering/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0a0f15",
+  "theme_color": "#0b1016",
+  "categories": ["developer", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/engineering/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/engineering/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
