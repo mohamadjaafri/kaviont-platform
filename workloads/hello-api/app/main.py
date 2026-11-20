@@ -12,6 +12,7 @@ from app.market_repository import (
     MarketDataStorageNotConfigured,
 )
 from app.observability import configure_observability
+from app.engineering_api import router as engineering_router
 from app.secrets import secret_is_configured
 
 environment = os.getenv("KAVIONT_ENV", "production").strip().lower()
@@ -30,6 +31,12 @@ app = FastAPI(
 )
 
 MARKET_DASHBOARD_DIR = Path(__file__).resolve().parent / "static" / "market"
+ENGINEERING_PORTAL_DIR = Path(__file__).resolve().parent / "static" / "engineering"
+app.mount(
+    "/engineering/assets",
+    StaticFiles(directory=ENGINEERING_PORTAL_DIR / "assets"),
+    name="engineering-portal-assets",
+)
 app.mount(
     "/market/assets",
     StaticFiles(directory=MARKET_DASHBOARD_DIR / "assets"),
@@ -37,6 +44,15 @@ app.mount(
 )
 
 configure_observability(app)
+app.include_router(engineering_router)
+
+
+@app.middleware("http")
+async def prevent_engineering_data_caching(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/v1/engineering/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/market", include_in_schema=False)
@@ -44,6 +60,15 @@ def market_dashboard() -> FileResponse:
     """Serve the interactive Kaviont Live market dashboard."""
     return FileResponse(
         MARKET_DASHBOARD_DIR / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/engineering", include_in_schema=False)
+def engineering_portal() -> FileResponse:
+    """Serve the Kaviont Engineering Portal."""
+    return FileResponse(
+        ENGINEERING_PORTAL_DIR / "index.html",
         headers={"Cache-Control": "no-store"},
     )
 

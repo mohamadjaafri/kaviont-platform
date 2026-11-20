@@ -22,6 +22,14 @@ workloadIdentity:
   keyVaultUrl: ""
   secretName: platform-demo-token
 
+platformInsights:
+  github:
+    enabled: false
+    tokenSecretName: github-read-token
+    tokenSecretKey: token
+  kubernetes:
+    enabled: true
+
 marketData:
   enabled: false
   pollIntervalSeconds: 60

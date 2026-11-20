@@ -22,7 +22,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "hello-api.serviceAccountName" . }}
-      automountServiceAccountToken: false
+      automountServiceAccountToken: {{ .Values.platformInsights.kubernetes.enabled }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -40,6 +40,15 @@ spec:
           env:
             - name: KAVIONT_ENV
               value: {{ .Values.environment | default "production" | quote }}
+            - name: KAVIONT_KUBERNETES_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            {{- if .Values.platformInsights.github.enabled }}
+            - name: KAVIONT_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "platformInsights.github.tokenSecretName is required when GitHub integration is enabled" .Values.platformInsights.github.tokenSecretName | quote }}
+                  key: {{ .Values.platformInsights.github.tokenSecretKey | quote }}
+            {{- end }}
             {{- if .Values.telemetry.enabled }}
             - name: OTEL_SERVICE_NAME
               value: {{ .Values.telemetry.serviceName | quote }}

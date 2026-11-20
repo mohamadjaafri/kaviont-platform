@@ -23,6 +23,14 @@ telemetry:
   serviceName: hello-api
   otlpEndpoint: ""
 
+platformInsights:
+  github:
+    enabled: false
+    tokenSecretName: github-read-token
+    tokenSecretKey: token
+  kubernetes:
+    enabled: false
+
 marketData:
   enabled: false
   pollIntervalSeconds: 60
