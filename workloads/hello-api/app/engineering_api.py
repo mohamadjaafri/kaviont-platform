@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import io
 import os
 import re
+import zipfile
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
 
+from app.engineering_templates import get_template, list_templates
 from app.github_integration import (
     GitHubAPIError,
     GitHubClient,
@@ -421,38 +425,30 @@ def engineering_knowledge() -> dict[str, Any]:
 
 @router.get("/templates")
 def engineering_templates() -> dict[str, Any]:
-    templates = [
-        {
-            "id": "python-fastapi-service",
-            "name": "Python API Service",
-            "category": "application",
-            "description": "FastAPI service with tests, container hardening, health checks and CI.",
-            "status": "catalog",
-            "stack": ["Python", "FastAPI", "Docker", "GitHub Actions"],
-        },
-        {
-            "id": "node-service",
-            "name": "Node.js Service",
-            "category": "application",
-            "description": "Node.js service with tests, dependency checks and container build.",
-            "status": "catalog",
-            "stack": ["Node.js", "TypeScript", "Docker", "GitHub Actions"],
-        },
-        {
-            "id": "terraform-module",
-            "name": "Terraform Module",
-            "category": "infrastructure",
-            "description": "Reusable Terraform module with formatting, validation and examples.",
-            "status": "catalog",
-            "stack": ["Terraform", "TFLint", "Checkov"],
-        },
-        {
-            "id": "helm-workload",
-            "name": "Kubernetes Workload",
-            "category": "platform",
-            "description": "Helm chart with security context, probes, resource limits and policies.",
-            "status": "catalog",
-            "stack": ["Kubernetes", "Helm", "Argo CD"],
-        },
-    ]
+    templates = list_templates()
     return {"count": len(templates), "templates": templates}
+
+
+@router.get("/templates/{template_id}/download")
+def download_engineering_template(template_id: str) -> Response:
+    template = get_template(template_id)
+    if template is None:
+        raise HTTPException(status_code=404, detail="Engineering template not found")
+
+    archive = io.BytesIO()
+    archive_root = f"kaviont-{template_id}"
+    with zipfile.ZipFile(archive, mode="w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for relative_path, content in template["files"].items():
+            if relative_path.startswith("/") or ".." in relative_path.split("/"):
+                raise HTTPException(status_code=500, detail="Template contains an unsafe file path")
+            bundle.writestr(f"{archive_root}/{relative_path}", content)
+
+    filename = f"kaviont-{template_id}.zip"
+    return Response(
+        content=archive.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
