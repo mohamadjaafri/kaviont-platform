@@ -64,6 +64,27 @@ def market_dashboard() -> FileResponse:
     )
 
 
+@app.get("/engineering/manifest.webmanifest", include_in_schema=False)
+def engineering_manifest() -> FileResponse:
+    return FileResponse(
+        ENGINEERING_PORTAL_DIR / "manifest.webmanifest",
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.get("/engineering/service-worker.js", include_in_schema=False)
+def engineering_service_worker() -> FileResponse:
+    return FileResponse(
+        ENGINEERING_PORTAL_DIR / "service-worker.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/engineering/",
+        },
+    )
+
+
 @app.get("/engineering", include_in_schema=False)
 def engineering_portal() -> FileResponse:
     """Serve the Kaviont Engineering Portal."""
