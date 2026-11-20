@@ -619,5 +619,12 @@
     }
   });
 
+  if ("serviceWorker" in navigator && (window.location.protocol === "https:" || window.location.hostname === "localhost")) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/engineering/service-worker.js", { scope: "/engineering/" })
+        .catch(() => toast("Offline shell could not be prepared. Live portal use is unaffected.", "error"));
+    });
+  }
+
   bootstrap();
 })();
