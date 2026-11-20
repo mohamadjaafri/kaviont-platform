@@ -2,6 +2,39 @@
 
 The engineering portal is served at /engineering and its API is rooted at /v1/engineering. The first release is read-only for connected source-control and Kubernetes systems. Template downloads are generated locally in memory. Repository creation, commits, deployments and cloud mutations are not exposed by this release.
 
+## Mobile app and server access
+
+The engineering portal is an installable Progressive Web App (PWA) for iOS and Android. It uses the same FastAPI service and same-origin API as the desktop portal. No separate mobile backend or native app build is required.
+
+### Install on iPhone
+
+1. Deploy the portal behind HTTPS and an authentication layer on a hostname reachable from the iPhone.
+2. Open the portal URL in Safari, for example https://kaviont.example.com/engineering/.
+3. Tap Share, then Add to Home Screen.
+4. Keep Open as Web App enabled, then tap Add.
+5. Launch Kaviont from the new Home Screen icon.
+
+### Install on Android
+
+1. Open the HTTPS portal URL in Chrome.
+2. Use Install app or Add to Home screen from the browser menu.
+3. Confirm the installation and launch Kaviont from the app launcher.
+
+### Offline behavior
+
+The service worker caches only the portal shell, CSS, JavaScript, manifest and app icon. It never caches /v1/engineering responses or other API calls. When offline, the cached portal shell can open, but live repository, security and Kubernetes data require a connection to the server. The worker uses a versioned cache and clears older Kaviont shell caches on activation.
+
+### Server deployment requirements
+
+- Use a stable DNS name and valid HTTPS certificate. Service workers and PWA installation require a secure context, except for local development.
+- Put an authentication and authorization layer in front of both /engineering and /v1/engineering. The portal's shared read-only GitHub token is not a user login system.
+- Prefer private network/VPN access or an OIDC/SSO-aware reverse proxy. Do not publish the raw API port directly to the internet.
+- Keep GitHub credentials server-side in a secret store or runtime secret. Never place them in the PWA, manifest or browser storage.
+- Configure the reverse proxy to forward /engineering, /engineering/, /engineering/assets/*, /engineering/manifest.webmanifest, /engineering/service-worker.js and /v1/engineering/* to the same FastAPI service and preserve the Service-Worker-Allowed response header.
+- Keep the service worker at /engineering/service-worker.js so its scope remains limited to the engineering portal. Do not move it to the domain root unless you intentionally want a wider scope.
+
+The PWA is an installable web client, not an App Store/Play Store native application. A native app wrapper is not needed for the current monitoring use case.
+
 ## GitHub connection
 
 Configure KAVIONT_GITHUB_TOKEN through the ignored local .env file or a Kubernetes Secret. Do not put tokens into Git, Helm values, image layers, logs or browser code.
