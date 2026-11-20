@@ -73,6 +73,29 @@ def engineering_portal() -> FileResponse:
     )
 
 
+@app.get("/engineering/manifest.webmanifest", include_in_schema=False)
+def engineering_manifest() -> FileResponse:
+    """Serve the installable app manifest."""
+    return FileResponse(
+        ENGINEERING_PORTAL_DIR / "manifest.webmanifest",
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.get("/engineering/service-worker.js", include_in_schema=False)
+def engineering_service_worker() -> FileResponse:
+    """Serve the PWA worker with a deliberately narrow scope."""
+    return FileResponse(
+        ENGINEERING_PORTAL_DIR / "service-worker.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/engineering/",
+        },
+    )
+
+
 def get_market_repository() -> MarketDataRepository:
     """Create a repository from runtime configuration without connecting at import."""
     return MarketDataRepository.from_environment()
