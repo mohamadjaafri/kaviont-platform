@@ -125,19 +125,24 @@ class GitHubClient:
         per_page: int = 50,
     ) -> list[dict[str, Any]]:
         per_page = min(max(int(per_page), 1), 100)
-        payload = self._get(
-            "/user/repos",
-            {
-                "affiliation": "owner,collaborator,organization_member",
-                "visibility": "all",
-                "sort": "pushed",
-                "direction": "desc",
-                "per_page": per_page,
-                "page": 1,
-            },
-        )
-        if not isinstance(payload, list):
-            raise GitHubAPIError(502, "GitHub returned an unexpected repository list")
+        payload: list[dict[str, Any]] = []
+        for page in range(1, 11):
+            batch = self._get(
+                "/user/repos",
+                {
+                    "affiliation": "owner,collaborator,organization_member",
+                    "visibility": "all",
+                    "sort": "pushed",
+                    "direction": "desc",
+                    "per_page": per_page,
+                    "page": page,
+                },
+            )
+            if not isinstance(batch, list):
+                raise GitHubAPIError(502, "GitHub returned an unexpected repository list")
+            payload.extend(batch)
+            if len(batch) < per_page:
+                break
         items = [self._repository_summary(item) for item in payload]
         normalized_search = search.strip().lower()
         if normalized_search:
@@ -243,6 +248,7 @@ class GitHubClient:
         package = vulnerability.get("package") or {}
         advisory = item.get("security_advisory") or {}
         cwes = advisory.get("cwes") or []
+        dependency = item.get("dependency") or {}
         return {
             "source": "Dependabot",
             "kind": "dependency",
@@ -251,7 +257,7 @@ class GitHubClient:
             "severity": vulnerability.get("severity") or advisory.get("severity") or "unknown",
             "package": package.get("name"),
             "ecosystem": package.get("ecosystem"),
-            "manifest": item.get("dependency", {}).get("manifest_path"),
+            "manifest": dependency.get("manifest_path"),
             "summary": advisory.get("summary") or advisory.get("description"),
             "ghsa_id": advisory.get("ghsa_id"),
             "cve_id": next(
