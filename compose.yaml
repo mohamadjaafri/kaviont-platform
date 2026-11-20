@@ -21,6 +21,7 @@ services:
       KEY_VAULT_SECRET_NAME: platform-demo-token
       LOCAL_DEMO_SECRET: ${LOCAL_DEMO_SECRET:-}
       KAVIONT_ENV: local
+      KAVIONT_GITHUB_TOKEN: ${KAVIONT_GITHUB_TOKEN:-}
       DATABASE_URL: postgresql://kaviont:${POSTGRES_PASSWORD:-kaviont-local-only}@postgres:5432/kaviont
       KRAKEN_POLL_INTERVAL_SECONDS: ${KRAKEN_POLL_INTERVAL_SECONDS:-60}
       KRAKEN_MARKET_PAIR: ${KRAKEN_MARKET_PAIR:-XBTUSD}
