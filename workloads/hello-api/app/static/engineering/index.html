@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1016">
+  <meta name="description" content="Kaviont Engineering Platform - repository, security and delivery intelligence">
+  <title>Kaviont Engineering Platform</title>
+  <link rel="stylesheet" href="/engineering/assets/engineering.css">
+  <script src="/engineering/assets/engineering.js" defer></script>
+</head>
+<body>
+  <div class="portal-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/engineering">
+        <span class="brand-mark">K</span>
+        <span class="brand-copy"><strong>KAVIONT</strong><small>ENGINEERING PLATFORM</small></span>
+      </a>
+      <div class="sidebar-label">WORKSPACE</div>
+      <nav class="primary-nav" aria-label="Engineering modules">
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span>Overview</button>
+        <button class="nav-item" data-view="repositories"><span class="nav-icon">⌘</span>Repositories<span class="nav-count" id="navRepoCount">—</span></button>
+        <button class="nav-item" data-view="security"><span class="nav-icon">⬡</span>Security<span class="nav-count alert-count" id="navFindings">—</span></button>
+        <button class="nav-item" data-view="pipelines"><span class="nav-icon">⇥</span>CI / CD</button>
+        <button class="nav-item" data-view="services"><span class="nav-icon">▦</span>Service catalog</button>
+        <button class="nav-item" data-view="runtime"><span class="nav-icon">◉</span>Kubernetes</button>
+        <button class="nav-item" data-view="cloud"><span class="nav-icon">☁</span>Cloud & IaC</button>
+        <button class="nav-item" data-view="knowledge"><span class="nav-icon">▤</span>Knowledge hub</button>
+        <button class="nav-item" data-view="templates"><span class="nav-icon">✳</span>Self-service</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-label">PLATFORM</div>
+        <div class="connection-card" id="githubConnection" data-state="unknown">
+          <span class="connection-dot"></span>
+          <div><strong>GitHub integration</strong><small id="githubConnectionText">Checking connection</small></div>
+        </div>
+        <a class="sidebar-link" href="/docs">API documentation ↗</a>
+        <a class="sidebar-link" href="/market">Legacy market demo ↗</a>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="breadcrumb"><span>ENGINEERING</span><i>/</i><strong id="breadcrumbCurrent">Overview</strong></div>
+        <div class="topbar-actions">
+          <span class="sync-status"><i></i><span id="lastRefresh">Not synced</span></span>
+          <button class="button button-secondary button-small" id="refreshAll" type="button">↻ Refresh</button>
+          <a class="avatar-link" href="https://github.com" target="_blank" rel="noreferrer" aria-label="GitHub">GH</a>
+        </div>
+      </header>
+
+      <div class="page-wrap">
+        <div class="setup-banner" id="setupBanner" hidden>
+          <div class="setup-icon">⌘</div>
+          <div class="setup-copy">
+            <strong>Connect GitHub to load your engineering workspace</strong>
+            <p>Configure a read-only token as <code>KAVIONT_GITHUB_TOKEN</code>. Keep it in your local <code>.env</code> or a Kubernetes Secret. Never store it in Git or Helm values.</p>
+          </div>
+          <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">Create token ↗</a>
+        </div>
+
+        <section class="portal-view active" id="view-overview">
+          <div class="page-heading">
+            <div><div class="eyebrow">ENGINEERING WORKSPACE / OVERVIEW</div><h1>Engineering <span>overview</span></h1><p>Your repositories, software delivery, security posture and runtime health in one place.</p></div>
+            <div class="heading-meta"><span class="live-dot"></span> PLATFORM STATUS <strong id="platformStatus">CONNECTING</strong></div>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric-card"><div class="metric-top"><span>REPOSITORIES</span><span class="metric-icon">⌘</span></div><strong id="metricRepos">—</strong><small id="metricReposHint">GitHub accessible repositories</small></article>
+            <article class="metric-card"><div class="metric-top"><span>PRIVATE REPOS</span><span class="metric-icon">▣</span></div><strong id="metricPrivate">—</strong><small>Restricted visibility</small></article>
+            <article class="metric-card"><div class="metric-top"><span>OPEN SECURITY FINDINGS</span><span class="metric-icon warning">⬡</span></div><strong id="metricFindings">—</strong><small id="metricFindingsHint">Select a repository to inspect alerts</small></article>
+            <article class="metric-card"><div class="metric-top"><span>FAILED WORKFLOWS</span><span class="metric-icon danger">⇥</span></div><strong id="metricPipelines">—</strong><small id="metricPipelinesHint">Latest runs for selected repository</small></article>
+          </div>
+
+          <div class="overview-grid">
+            <article class="panel">
+              <div class="panel-heading"><div><span class="section-kicker">SOURCE CONTROL</span><h2>Recently updated repositories</h2></div><button class="text-button" data-go="repositories">All repositories ↗</button></div>
+              <div class="table-wrap"><table><thead><tr><th>REPOSITORY</th><th>LANGUAGE</th><th>VISIBILITY</th><th>LAST PUSH</th></tr></thead><tbody id="recentRepos"><tr><td colspan="4" class="table-empty">Connect GitHub to load repositories.</td></tr></tbody></table></div>
+            </article>
+            <article class="panel language-panel">
+              <div class="panel-heading"><div><span class="section-kicker">TECHNOLOGY LANDSCAPE</span><h2>Languages</h2></div></div>
+              <div id="languageList" class="language-list"><div class="empty-state">Waiting for repository data.</div></div>
+            </article>
+          </div>
+
+          <div class="module-grid">
+            <button class="module-card" data-go="security"><span class="module-symbol security-symbol">⬡</span><span><strong>DevSecOps</strong><small>Code scanning, dependencies, secrets, IaC</small></span><b>→</b></button>
+            <button class="module-card" data-go="pipelines"><span class="module-symbol pipeline-symbol">⇥</span><span><strong>Delivery intelligence</strong><small>GitHub Actions, release and workflow status</small></span><b>→</b></button>
+            <button class="module-card" data-go="runtime"><span class="module-symbol runtime-symbol">◉</span><span><strong>Runtime intelligence</strong><small>Read-only Kubernetes workload visibility</small></span><b>→</b></button>
+            <button class="module-card" data-go="templates"><span class="module-symbol template-symbol">✳</span><span><strong>Developer self-service</strong><small>Standardized engineering templates</small></span><b>→</b></button>
+          </div>
+        </section>
+
+        <section class="portal-view" id="view-repositories">
+          <div class="page-heading"><div><div class="eyebrow">SOURCE CONTROL / GITHUB</div><h1>Repositories</h1><p>Browse codebases, inspect repository activity and open the source in GitHub.</p></div><span class="total-pill" id="repoTotal">0 repositories</span></div>
+          <div class="toolbar"><div class="search-wrap"><span>⌕</span><input id="repoSearch" type="search" placeholder="Search name, language or topic…"></div><select id="repoVisibility"><option value="all">All visibility</option><option value="private">Private</option><option value="public">Public</option><option value="archived">Archived</option></select><button class="button button-secondary" id="repoReload" type="button">Refresh list</button></div>
+          <article class="panel"><div class="table-wrap"><table><thead><tr><th>REPOSITORY</th><th>LANGUAGE</th><th>DEFAULT BRANCH</th><th>OPEN ISSUES</th><th>UPDATED</th><th></th></tr></thead><tbody id="repoTable"><tr><td colspan="6" class="table-empty">Loading repositories…</td></tr></tbody></table></div></article>
+          <article class="panel detail-panel" id="repoDetailPanel">
+            <div class="panel-heading"><div><span class="section-kicker">REPOSITORY DETAIL</span><h2 id="repoDetailName">Select a repository</h2></div><a id="repoExternalLink" class="text-button" href="#" target="_blank" rel="noreferrer" hidden>Open GitHub ↗</a></div>
+            <div id="repoDetailBody" class="empty-state">Select a repository to inspect its metadata, open pull requests and issues.</div>
+          </article>
+        </section>
+
+        <section class="portal-view" id="view-security">
+          <div class="page-heading"><div><div class="eyebrow">DEVSECOPS / APPLICATION SECURITY</div><h1>Security <span>intelligence</span></h1><p>Review code scanning and dependency findings, then trace each issue to its repository and source location.</p></div><a class="button button-secondary" id="securityExternal" href="#" target="_blank" rel="noreferrer" hidden>GitHub Security ↗</a></div>
+          <div class="security-tools"><div class="tool-chip"><b>CodeQL</b><span>SAST</span></div><div class="tool-chip"><b>Trivy</b><span>SCA · IaC · secrets</span></div><div class="tool-chip"><b>Gitleaks</b><span>Secret detection</span></div><div class="tool-chip"><b>OWASP ZAP</b><span>DAST baseline</span></div><div class="tool-chip"><b>Dependency-Check</b><span>OWASP SCA</span></div></div>
+          <div class="security-filter"><label for="securityRepo">Repository</label><select id="securityRepo"><option value="">Select repository</option></select><span class="security-source-status" id="securitySourceStatus">Waiting for repository selection</span></div>
+          <div class="severity-grid">
+            <article class="severity-card critical"><span>CRITICAL</span><strong id="countCritical">—</strong></article>
+            <article class="severity-card high"><span>HIGH</span><strong id="countHigh">—</strong></article>
+            <article class="severity-card medium"><span>MEDIUM</span><strong id="countMedium">—</strong></article>
+            <article class="severity-card low"><span>LOW</span><strong id="countLow">—</strong></article>
+          </div>
+          <article class="panel"><div class="panel-heading"><div><span class="section-kicker">OPEN FINDINGS</span><h2>Vulnerability register</h2></div><span class="total-pill" id="findingTotal">0 findings</span></div><div class="table-wrap"><table><thead><tr><th>SEVERITY</th><th>FINDING</th><th>SOURCE</th><th>OWASP MAPPING</th><th>LOCATION</th></tr></thead><tbody id="findingTable"><tr><td colspan="5" class="table-empty">Select a repository to load security findings.</td></tr></tbody></table></div></article>
+          <article class="panel standards-panel"><div><span class="section-kicker">SECURITY STANDARDS</span><h2>How Kaviont classifies risk</h2><p>OWASP Top 10:2025 provides risk categories. ASVS 5.0.0 provides security requirements for verification. Scanner findings are mapped only where a defensible CWE or source mapping exists.</p></div><div class="standards-links"><a href="https://top10.owasp.org/2025/" target="_blank" rel="noreferrer">OWASP Top 10:2025 ↗</a><a href="https://asvs.owasp.org/" target="_blank" rel="noreferrer">OWASP ASVS 5.0.0 ↗</a></div></article>
+        </section>
+
+        <section class="portal-view" id="view-pipelines">
+          <div class="page-heading"><div><div class="eyebrow">SOFTWARE DELIVERY / GITHUB ACTIONS</div><h1>CI / CD intelligence</h1><p>Inspect workflow runs, delivery status, branches and deployment signals.</p></div></div>
+          <div class="toolbar"><label for="pipelineRepo">Repository</label><select id="pipelineRepo"><option value="">Select repository</option></select><button class="button button-secondary" id="pipelineReload" type="button">Refresh runs</button></div>
+          <div class="metric-grid compact-metrics"><article class="metric-card"><div class="metric-top"><span>RECENT RUNS</span></div><strong id="pipelineRuns">—</strong></article><article class="metric-card"><div class="metric-top"><span>SUCCESSFUL</span></div><strong id="pipelineSuccess">—</strong></article><article class="metric-card"><div class="metric-top"><span>FAILED</span></div><strong id="pipelineFailed">—</strong></article></div>
+          <article class="panel"><div class="panel-heading"><div><span class="section-kicker">WORKFLOW EXECUTIONS</span><h2>Recent pipeline runs</h2></div></div><div class="table-wrap"><table><thead><tr><th>WORKFLOW</th><th>BRANCH</th><th>STATUS</th><th>CONCLUSION</th><th>STARTED</th><th></th></tr></thead><tbody id="pipelineTable"><tr><td colspan="6" class="table-empty">Select a repository to load workflow runs.</td></tr></tbody></table></div></article>
+        </section>
+
+        <section class="portal-view" id="view-services">
+          <div class="page-heading"><div><div class="eyebrow">ARCHITECTURE / SERVICE OWNERSHIP</div><h1>Service catalog</h1><p>Discover the systems and components represented by your repositories.</p></div><span class="total-pill" id="serviceTotal">0 services</span></div>
+          <div class="callout">This first catalog uses GitHub repositories and topics as its source. Team ownership, lifecycle and criticality are shown as unclassified until service metadata is explicitly registered.</div>
+          <div class="service-grid" id="serviceGrid"><div class="empty-state">Loading service catalog…</div></div>
+        </section>
+
+        <section class="portal-view" id="view-runtime">
+          <div class="page-heading"><div><div class="eyebrow">PLATFORM ENGINEERING / KUBERNETES</div><h1>Runtime intelligence</h1><p>Read-only visibility into workloads in the namespace where Kaviont runs.</p></div><button class="button button-secondary" id="runtimeReload" type="button">Refresh runtime</button></div>
+          <div class="metric-grid compact-metrics"><article class="metric-card"><div class="metric-top"><span>DEPLOYMENTS</span></div><strong id="kubeDeployments">—</strong></article><article class="metric-card"><div class="metric-top"><span>PODS</span></div><strong id="kubePods">—</strong></article><article class="metric-card"><div class="metric-top"><span>NOT READY</span></div><strong id="kubeNotReady">—</strong></article><article class="metric-card"><div class="metric-top"><span>RESTARTS</span></div><strong id="kubeRestarts">—</strong></article></div>
+          <article class="panel"><div class="panel-heading"><div><span class="section-kicker">WORKLOADS</span><h2>Deployments</h2></div><span class="total-pill" id="kubeNamespace">Namespace —</span></div><div class="table-wrap"><table><thead><tr><th>DEPLOYMENT</th><th>READY</th><th>AVAILABLE</th><th>IMAGE</th></tr></thead><tbody id="deploymentTable"><tr><td colspan="4" class="table-empty">Waiting for Kubernetes connection.</td></tr></tbody></table></div></article>
+          <article class="panel"><div class="panel-heading"><div><span class="section-kicker">POD HEALTH</span><h2>Pods</h2></div></div><div class="table-wrap"><table><thead><tr><th>POD</th><th>STATUS</th><th>READY</th><th>RESTARTS</th><th>NODE</th></tr></thead><tbody id="podTable"><tr><td colspan="5" class="table-empty">Waiting for Kubernetes connection.</td></tr></tbody></table></div></article>
+        </section>
+
+        <section class="portal-view" id="view-cloud">
+          <div class="page-heading"><div><div class="eyebrow">CLOUD ENGINEERING / INFRASTRUCTURE AS CODE</div><h1>Cloud & IaC security</h1><p>Connect infrastructure repositories to configuration, policy and supply-chain checks.</p></div></div>
+          <div class="integration-grid">
+            <article class="integration-card"><div class="integration-logo">TF</div><div><h3>Terraform</h3><p>Format, validate, plan policy and module controls.</p><span class="integration-state">Repository-driven</span></div></article>
+            <article class="integration-card"><div class="integration-logo trivy-logo">TV</div><div><h3>Trivy IaC</h3><p>Misconfiguration scans for Terraform, Kubernetes and container build files.</p><span class="integration-state">Security workflow</span></div></article>
+            <article class="integration-card"><div class="integration-logo checkov-logo">CK</div><div><h3>Checkov</h3><p>Policy-as-code checks for cloud resources and infrastructure templates.</p><span class="integration-state pending">Next connector</span></div></article>
+            <article class="integration-card"><div class="integration-logo cloud-logo">AZ</div><div><h3>Azure inventory</h3><p>Subscription resources, policy compliance and cost signals.</p><span class="integration-state pending">Cloud identity not connected</span></div></article>
+          </div>
+          <article class="panel standards-panel"><div><span class="section-kicker">DESIGN PRINCIPLE</span><h2>Cloud reads are separate from repository reads</h2><p>GitHub access does not grant cloud visibility. Azure, AWS and GCP inventory require their own read-only identities and explicit subscription/account scope.</p></div></article>
+        </section>
+
+        <section class="portal-view" id="view-knowledge">
+          <div class="page-heading"><div><div class="eyebrow">ENGINEERING ENABLEMENT / DOCUMENTATION</div><h1>Knowledge hub</h1><p>Architecture decisions, operational runbooks and team engineering guidance.</p></div></div>
+          <div class="knowledge-grid" id="knowledgeGrid"><div class="empty-state">Loading repository documentation…</div></div>
+        </section>
+
+        <section class="portal-view" id="view-templates">
+          <div class="page-heading"><div><div class="eyebrow">DEVELOPER EXPERIENCE / SELF-SERVICE</div><h1>Developer self-service</h1><p>Start new workloads from consistent engineering blueprints.</p></div></div>
+          <div class="callout">Templates are currently discoverable in the catalog. Repository creation and provisioning actions will be enabled only after an explicit write-scoped GitHub integration is configured.</div>
+          <div class="template-grid" id="templateGrid"><div class="empty-state">Loading templates…</div></div>
+        </section>
+
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
