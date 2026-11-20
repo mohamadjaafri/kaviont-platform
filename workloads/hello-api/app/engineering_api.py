@@ -186,6 +186,80 @@ def service_catalog() -> dict[str, Any]:
     return {"count": len(services), "services": services}
 
 
+@router.get("/security/frameworks")
+def security_frameworks() -> dict[str, Any]:
+    return {
+        "owasp_top_10": {
+            "version": "2025",
+            "url": "https://top10.owasp.org/2025/",
+            "categories": [
+                {"id": "A01:2025", "name": "Broken Access Control"},
+                {"id": "A02:2025", "name": "Security Misconfiguration"},
+                {"id": "A03:2025", "name": "Software Supply Chain Failures"},
+                {"id": "A04:2025", "name": "Cryptographic Failures"},
+                {"id": "A05:2025", "name": "Injection"},
+                {"id": "A06:2025", "name": "Insecure Design"},
+                {"id": "A07:2025", "name": "Authentication Failures"},
+                {"id": "A08:2025", "name": "Software or Data Integrity Failures"},
+                {"id": "A09:2025", "name": "Security Logging and Alerting Failures"},
+                {"id": "A10:2025", "name": "Mishandling of Exceptional Conditions"},
+            ],
+        },
+        "owasp_asvs": {
+            "version": "5.0.0",
+            "url": "https://asvs.owasp.org/",
+            "purpose": "Security verification requirements; automated scan findings do not establish ASVS compliance.",
+        },
+    }
+
+
+@router.get("/cloud")
+def cloud_iac_inventory() -> dict[str, Any]:
+    """Discover infrastructure repositories; provider flags show config presence only."""
+    client = _client_or_503()
+    try:
+        repositories = client.list_repositories(per_page=100)
+    except GitHubAPIError as exc:
+        raise _github_error(exc) from exc
+
+    infrastructure = [
+        item for item in repositories
+        if str(item.get("language") or "").lower() in {"hcl", "bicep"}
+        or any(
+            topic in item.get("topics", [])
+            for topic in ("terraform", "infrastructure", "iac", "platform", "cloud")
+        )
+    ]
+    return {
+        "infrastructure_repository_count": len(infrastructure),
+        "infrastructure_repositories": infrastructure,
+        "provider_configuration": {
+            "azure": {
+                "configuration_present": bool(
+                    os.getenv("AZURE_SUBSCRIPTION_ID", "").strip()
+                    and os.getenv("AZURE_TENANT_ID", "").strip()
+                ),
+                "inventory_status": "not_connected",
+            },
+            "aws": {
+                "configuration_present": bool(
+                    os.getenv("AWS_ROLE_ARN", "").strip()
+                    or os.getenv("AWS_PROFILE", "").strip()
+                ),
+                "inventory_status": "not_connected",
+            },
+            "gcp": {
+                "configuration_present": bool(
+                    os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
+                    or os.getenv("GCP_PROJECT", "").strip()
+                ),
+                "inventory_status": "not_connected",
+            },
+        },
+        "message": "Cloud provider configuration is not the same as a verified cloud inventory connection.",
+    }
+
+
 @router.get("/kubernetes")
 def kubernetes_runtime() -> dict[str, Any]:
     """Read namespaced pod/deployment health using the service-account identity."""
