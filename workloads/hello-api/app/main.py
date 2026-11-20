@@ -47,6 +47,14 @@ configure_observability(app)
 app.include_router(engineering_router)
 
 
+@app.middleware("http")
+async def prevent_engineering_data_caching(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/v1/engineering/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/market", include_in_schema=False)
 def market_dashboard() -> FileResponse:
     """Serve the interactive Kaviont Live market dashboard."""
