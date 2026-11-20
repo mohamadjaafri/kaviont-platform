@@ -1,0 +1,21 @@
+{
+  "id": "/engineering",
+  "name": "Kaviont Engineering Platform",
+  "short_name": "Kaviont",
+  "description": "Engineering, security and platform operations workspace",
+  "start_url": "/engineering",
+  "scope": "/engineering/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0a0f15",
+  "theme_color": "#0c131b",
+  "icons": [
+    {
+      "src": "/engineering/assets/kaviont-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
