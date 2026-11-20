@@ -30,8 +30,8 @@ def test_health_endpoint() -> None:
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 """,
-            "requirements.txt": "fastapi>=0.115,<1.0\\nuvicorn[standard]>=0.34,<1.0\\n",
-            "requirements-dev.txt": "-r requirements.txt\\nhttpx>=0.27,<1.0\\npytest>=8,<9\\n",
+            "requirements.txt": "fastapi>=0.115,<1.0\nuvicorn[standard]>=0.34,<1.0\n",
+            "requirements-dev.txt": "-r requirements.txt\nhttpx>=0.27,<1.0\npytest>=8,<9\n",
             "Dockerfile": """FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
@@ -69,7 +69,7 @@ jobs:
     with:
       run_dependency_check: false
 """,
-            ".gitignore": ".venv/\\n__pycache__/\\n.pytest_cache/\\n.env\\n",
+            ".gitignore": ".venv/\n__pycache__/\n.pytest_cache/\n.env\n",
             "README.md": """# Python FastAPI Service
 
 ## Local development
@@ -175,7 +175,7 @@ jobs:
     with:
       run_dependency_check: false
 """,
-            ".gitignore": "node_modules/\\n.env\\ncoverage/\\n",
+            ".gitignore": "node_modules/\n.env\ncoverage/\n",
             "README.md": """# Node.js Service
 
 Run the service with npm start. Run tests with npm test. The workflow includes the reusable Kaviont code and dependency security checks.
@@ -271,7 +271,7 @@ jobs:
     with:
       run_dependency_check: false
 """,
-            ".gitignore": ".terraform/\\n*.tfstate\\n*.tfstate.*\\n*.tfvars\\n",
+            ".gitignore": ".terraform/\n*.tfstate\n*.tfstate.*\n*.tfvars\n",
             "README.md": """# Terraform Module
 
 This is a reusable module skeleton. Review the example, run terraform fmt -recursive, then initialize and validate from the module root. Add provider-specific resources and tests before use.
