@@ -280,3 +280,19 @@ tbody tr[data-repo]:hover, tbody tr[data-action]:hover { background: rgba(107,21
   .topbar-actions { gap: 8px; }
   .breadcrumb { font-size: 8px; }
 }
+
+
+/* Respect iPhone safe areas when installed as a home-screen app. */
+@supports (padding: env(safe-area-inset-top)) {
+  .topbar {
+    padding-left: max(15px, env(safe-area-inset-left));
+    padding-right: max(15px, env(safe-area-inset-right));
+    padding-top: env(safe-area-inset-top);
+  }
+  .page-wrap {
+    padding-bottom: calc(38px + env(safe-area-inset-bottom));
+  }
+  .sidebar {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+}
