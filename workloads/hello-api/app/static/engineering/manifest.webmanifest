@@ -3,7 +3,7 @@
   "name": "Kaviont Engineering Platform",
   "short_name": "Kaviont",
   "description": "Engineering, security and platform operations workspace",
-  "start_url": "/engineering",
+  "start_url": "/engineering/",
   "scope": "/engineering/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
