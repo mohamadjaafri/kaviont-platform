@@ -135,6 +135,24 @@ The dashboard provides tracked-market selection, price and 24-hour statistics, a
 
 The page is served by FastAPI from the application image, so Docker Compose and the local Kubernetes deployment use the same UI and API origin. No separate frontend container, browser-side exchange credentials, or external asset CDN is required.
 
+## Kaviont Engineering Platform
+
+Kaviont also provides an engineer-focused portal at http://127.0.0.1:8080/engineering. The portal combines GitHub repository discovery, repository metadata, pull requests, issues, GitHub Actions workflow runs, Dependabot and Code Scanning findings, a repository-derived service catalog, Kubernetes read-only runtime visibility, IaC repository discovery, engineering documentation, and downloadable project blueprints.
+
+Configure the optional read-only GitHub integration through the ignored local .env file:
+
+    cp .env.example .env
+    # Set KAVIONT_GITHUB_TOKEN in .env
+    make dev-up
+
+The integration reads only the repositories and capabilities granted to the token. For Kubernetes runtime insight, the local Helm values enable a namespace-scoped Role with read-only access to pods, deployments, services and events. The default cloud chart does not mount a Kubernetes service-account token unless platformInsights.kubernetes.enabled is enabled.
+
+The repository includes reusable CodeQL, Trivy, Gitleaks, CycloneDX SBOM and OWASP Dependency-Check security workflows. A manually dispatched OWASP ZAP Baseline workflow validates an explicit HTTPS target against the DAST_ALLOWED_HOSTS allowlist and requires the operator to confirm authorization. Repositories can call the reusable workflow from their own CI pipeline.
+
+The self-service catalog currently generates ZIP archives for Python FastAPI, Node.js, Terraform and Helm starter blueprints. It does not create GitHub repositories or provision cloud resources. Cloud provider credentials are not inferred from GitHub access, and provider inventory is not yet connected.
+
+Security results are source-attributed. OWASP Top 10:2025 classification is heuristic when the scanner supplies a matching CWE; ASVS 5.0.0 is provided as a verification reference, not as a compliance claim. See docs/runbooks/engineering-platform.md for permissions, setup, API routes and integration boundaries.
+
 ## Validate infrastructure and charts
 
 Terraform and Azure CLI are needed only for the Azure infrastructure workflow. From the repository root:
