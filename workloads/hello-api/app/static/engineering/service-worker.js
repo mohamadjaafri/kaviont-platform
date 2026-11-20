@@ -7,6 +7,7 @@ const APP_SHELL = [
   "/engineering/manifest.webmanifest",
   "/engineering/assets/engineering.css",
   "/engineering/assets/engineering.js",
+  "/engineering/assets/icon-180.png",
   "/engineering/assets/icon-192.png",
   "/engineering/assets/icon-512.png"
 ];
@@ -46,7 +47,7 @@ self.addEventListener("fetch", (event) => {
 
   const isAppNavigation =
     request.mode === "navigate" &&
-    (url.pathname === "/engineering/" || url.pathname === "/engineering/");
+    url.pathname === "/engineering/";
 
   if (isAppNavigation) {
     event.respondWith(
