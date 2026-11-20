@@ -1,0 +1,149 @@
+name: Reusable Engineering Security Scans
+
+on:
+  workflow_call:
+    inputs:
+      run_dependency_check:
+        description: Run the slower OWASP Dependency-Check SCA scan
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      NVD_API_KEY:
+        description: Optional NVD API key to improve Dependency-Check update throughput
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL SAST
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: python,javascript
+          build-mode: none
+      - name: Analyze source code
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:python-javascript
+
+  trivy:
+    name: Trivy SCA, secrets and IaC
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+      - name: Scan source, dependencies, secrets and IaC
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL,HIGH,MEDIUM
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: "0"
+      - name: Upload Trivy findings to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-filesystem
+      - name: Generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: cyclonedx
+          output: kaviont-sbom.cdx.json
+          exit-code: "0"
+      - name: Publish SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaviont-sbom-\${{ github.run_id }}
+          path: kaviont-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+
+  gitleaks:
+    name: Gitleaks secret detection
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Scan Git history for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
+          GITLEAKS_ENABLE_SUMMARY: "true"
+
+  owasp_dependency_check:
+    name: OWASP Dependency-Check
+    if: inputs.run_dependency_check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+      - name: Cache Dependency-Check data
+        uses: actions/cache@v4
+        with:
+          path: .cache/owasp-dependency-check
+          key: owasp-dc-\${{ runner.os }}-\${{ hashFiles('**/requirements*.txt', '**/pom.xml', '**/build.gradle*', '**/package-lock.json', '**/yarn.lock') }}
+          restore-keys: |
+            owasp-dc-\${{ runner.os }}-
+      - name: Run OWASP Dependency-Check 13
+        env:
+          NVD_API_KEY: \${{ secrets.NVD_API_KEY }}
+        run: |
+          mkdir -p .cache/owasp-dependency-check reports/owasp-dependency-check
+          args=(
+            --project "Kaviont"
+            --scan /src/workloads/hello-api
+            --format HTML
+            --format JSON
+            --out /report
+            --data /usr/share/dependency-check/data
+          )
+          if [ -n "\${NVD_API_KEY:-}" ]; then
+            args+=(--nvdApiKey "$NVD_API_KEY")
+          fi
+          docker run --rm \
+            -v "$PWD:/src:ro" \
+            -v "$PWD/.cache/owasp-dependency-check:/usr/share/dependency-check/data" \
+            -v "$PWD/reports/owasp-dependency-check:/report" \
+            owasp/dependency-check:13.0.0 \
+            "\${args[@]}"
+      - name: Publish OWASP Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-dependency-check-\${{ github.run_id }}
+          path: reports/owasp-dependency-check
+          if-no-files-found: warn
+          retention-days: 30
