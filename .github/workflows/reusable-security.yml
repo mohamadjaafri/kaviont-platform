@@ -124,7 +124,7 @@ jobs:
           mkdir -p .cache/owasp-dependency-check reports/owasp-dependency-check
           args=(
             --project "Kaviont"
-            --scan /src/workloads/hello-api
+            --scan /src
             --format HTML
             --format JSON
             --out /report
