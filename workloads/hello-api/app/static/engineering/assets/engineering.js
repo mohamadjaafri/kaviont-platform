@@ -11,7 +11,8 @@
     security: null,
     pipelines: null,
     toastTimer: null,
-    searchTimer: null
+    searchTimer: null,
+    deferredInstallPrompt: null
   };
 
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -97,6 +98,13 @@
     document.querySelectorAll(".nav-item").forEach((item) => {
       item.classList.toggle("active", item.dataset.view === view);
     });
+    document.querySelectorAll(".mobile-dock-item[data-view]").forEach((item) => {
+      item.classList.toggle("active", item.dataset.view === view);
+    });
+    const moreMenu = $("#mobileMoreMenu");
+    if (moreMenu) moreMenu.hidden = true;
+    const moreToggle = $("#mobileMoreToggle");
+    if (moreToggle) moreToggle.setAttribute("aria-expanded", "false");
     const active = document.querySelector('.nav-item[data-view="' + view + '"]');
     $("#breadcrumbCurrent").textContent = active ? active.textContent.trim() : view;
     loadView(view);
@@ -510,6 +518,85 @@
     }
   }
 
+  function isIOSDevice() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  function isStandaloneApp() {
+    return window.matchMedia("(display-mode: standalone)").matches
+      || window.matchMedia("(display-mode: fullscreen)").matches
+      || navigator.standalone === true;
+  }
+
+  function showInstallHelp(message) {
+    const dialog = $("#installHelp");
+    $("#installHelpText").textContent = message;
+    if (typeof dialog.showModal === "function") {
+      if (!dialog.open) dialog.showModal();
+    } else {
+      toast(message);
+    }
+  }
+
+  function setupProgressiveWebApp() {
+    const installButton = $("#pwaInstall");
+    const iosDevice = isIOSDevice();
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/engineering/service-worker.js", {
+        scope: "/engineering/"
+      }).catch(() => {
+        // The portal remains fully usable when offline support is unavailable.
+      });
+    }
+
+    if (isStandaloneApp()) {
+      installButton.hidden = true;
+    } else if (iosDevice) {
+      installButton.hidden = false;
+      installButton.addEventListener("click", () => {
+        showInstallHelp(
+          "On your iPhone or iPad, open the browser Share menu, choose Add to Home Screen, turn on Open as Web App, then tap Add. Kaviont will appear as an app icon."
+        );
+      });
+    }
+
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      state.deferredInstallPrompt = event;
+      installButton.hidden = false;
+    });
+
+    installButton.addEventListener("click", async () => {
+      if (iosDevice) return;
+      if (!state.deferredInstallPrompt) {
+        showInstallHelp(
+          "Open your browser menu and choose Install app or Add to Home screen. The exact wording depends on your browser."
+        );
+        return;
+      }
+      state.deferredInstallPrompt.prompt();
+      try {
+        const choice = await state.deferredInstallPrompt.userChoice;
+        if (choice && choice.outcome === "accepted") {
+          installButton.hidden = true;
+          toast("Kaviont installation accepted.");
+        }
+      } finally {
+        state.deferredInstallPrompt = null;
+      }
+    });
+
+    window.addEventListener("appinstalled", () => {
+      installButton.hidden = true;
+      toast("Kaviont is installed on this device.");
+    });
+
+    window.addEventListener("online", () => toast("Connection restored."));
+    window.addEventListener("offline", () => toast("You are offline. Live engineering data is unavailable.", "error"));
+  }
+
   async function bootstrap() {
     try {
       const status = await request("/status");
@@ -529,6 +616,20 @@
       toast(error.message, "error");
     }
   }
+
+  const mobileMoreToggle = $("#mobileMoreToggle");
+  const mobileMoreMenu = $("#mobileMoreMenu");
+  mobileMoreToggle.addEventListener("click", () => {
+    const isOpen = mobileMoreMenu.hidden;
+    mobileMoreMenu.hidden = !isOpen;
+    mobileMoreToggle.setAttribute("aria-expanded", String(isOpen));
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#mobileMoreMenu") && !event.target.closest("#mobileMoreToggle")) {
+      mobileMoreMenu.hidden = true;
+      mobileMoreToggle.setAttribute("aria-expanded", "false");
+    }
+  });
 
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => go(button.dataset.view));
@@ -619,5 +720,6 @@
     }
   });
 
+  setupProgressiveWebApp();
   bootstrap();
 })();
