@@ -433,3 +433,13 @@ def test_github_repository_listing_is_paginated(monkeypatch):
 
     assert pages == [1, 2]
     assert [item["name"] for item in repositories] == ["repo-1", "repo-2"]
+
+
+def test_engineering_api_responses_are_not_cached(monkeypatch):
+    monkeypatch.delenv("KAVIONT_GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    response = client.get("/v1/engineering/status")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
