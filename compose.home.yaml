@@ -1,0 +1,96 @@
+name: kaviont-home
+
+services:
+  hello-api:
+    image: kaviont/hello-api:home
+    build:
+      context: ./workloads/hello-api
+      dockerfile: Dockerfile
+      target: runtime
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+    environment:
+      KEY_VAULT_URL: ""
+      KEY_VAULT_SECRET_NAME: platform-demo-token
+      LOCAL_DEMO_SECRET: ""
+      KAVIONT_ENV: production
+      KAVIONT_GITHUB_TOKEN: ${KAVIONT_GITHUB_TOKEN:-}
+      DATABASE_URL: postgresql://kaviont:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.home}@postgres:5432/kaviont
+      KRAKEN_POLL_INTERVAL_SECONDS: ${KRAKEN_POLL_INTERVAL_SECONDS:-60}
+      KRAKEN_MARKET_PAIR: ${KRAKEN_MARKET_PAIR:-XBTUSD}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=2)"
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  market-data-worker:
+    image: kaviont/market-data-worker:home
+    build:
+      context: ./workloads/hello-api
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "-m", "app.market_worker"]
+    environment:
+      DATABASE_URL: postgresql://kaviont:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.home}@postgres:5432/kaviont
+      KAVIONT_ENV: production
+      KRAKEN_POLL_INTERVAL_SECONDS: ${KRAKEN_POLL_INTERVAL_SECONDS:-60}
+      KRAKEN_MARKET_PAIR: ${KRAKEN_MARKET_PAIR:-XBTUSD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  postgres:
+    image: postgres:17.5-alpine
+    environment:
+      POSTGRES_USER: kaviont
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.home}
+      POSTGRES_DB: kaviont
+    volumes:
+      - market-data-db:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kaviont -d kaviont"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  market-data-db:
