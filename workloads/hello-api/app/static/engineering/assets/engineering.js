@@ -435,10 +435,16 @@
           (item.ready ? "Ready" : "Not ready") + '</td><td>' + Number(item.restarts || 0) +
           '</td><td>' + escapeHtml(item.node || "—") + '</td></tr>').join("")
         : '<tr><td colspan="5" class="table-empty">No pods found in this namespace.</td></tr>';
+      $("#kubeEventTable").innerHTML = (payload.events || []).length
+        ? payload.events.map((item) => '<tr><td><span class="status-pill ' + (item.type === "Warning" ? "failure" : "success") + '">' + escapeHtml(item.type || "—") + '</span></td><td>' +
+          escapeHtml(item.reason || "—") + '</td><td>' + escapeHtml(item.object || "—") + '</td><td style="white-space:normal;min-width:240px;max-width:460px">' +
+          escapeHtml(item.message || "—") + '</td><td>' + escapeHtml(formatRelative(item.last_timestamp)) + '</td></tr>').join("")
+        : '<tr><td colspan="5" class="table-empty">No recent events found.</td></tr>';
     } catch (error) {
       ids.forEach((selector) => { $(selector).textContent = "—"; });
       $("#deploymentTable").innerHTML = '<tr><td colspan="4" class="table-empty">' + escapeHtml(error.message) + '</td></tr>';
       $("#podTable").innerHTML = '<tr><td colspan="5" class="table-empty">Kubernetes connection unavailable.</td></tr>';
+      $("#kubeEventTable").innerHTML = '<tr><td colspan="5" class="table-empty">Kubernetes connection unavailable.</td></tr>';
       throw error;
     }
   }
