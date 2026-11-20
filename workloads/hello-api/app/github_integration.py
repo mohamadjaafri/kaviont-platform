@@ -361,21 +361,42 @@ class GitHubClient:
         }
 
     def list_knowledge_documents(self) -> list[dict[str, Any]]:
-        knowledge_repository = os.getenv("KAVIONT_KNOWLEDGE_REPOSITORY", "mohamadjaafri/kaviont-platform").strip()
+        knowledge_repository = os.getenv(
+            "KAVIONT_KNOWLEDGE_REPOSITORY",
+            "mohamadjaafri/kaviont-platform",
+        ).strip()
         owner, separator, name = knowledge_repository.partition("/")
         if not separator or not owner or not name or "/" in name:
             raise ValueError("KAVIONT_KNOWLEDGE_REPOSITORY must use owner/name format")
-        payload = self._get(f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/contents/docs")
-        if not isinstance(payload, list):
-            return []
-        return [
-            {
-                "name": item.get("name"),
-                "path": item.get("path"),
-                "type": item.get("type"),
-                "html_url": item.get("html_url"),
-            }
-            for item in payload
-            if item.get("type") == "file"
-            and str(item.get("name", "")).lower().endswith((".md", ".mdx"))
-        ]
+
+        repository_path = f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}"
+        pending = [("docs", 0)]
+        documents: list[dict[str, Any]] = []
+        visited_directories = 0
+        while pending and visited_directories < 30:
+            directory, depth = pending.pop(0)
+            visited_directories += 1
+            payload = self._get(
+                f"{repository_path}/contents/{quote(directory, safe='/')}"
+            )
+            if not isinstance(payload, list):
+                continue
+            for item in payload:
+                path = str(item.get("path") or "")
+                kind = item.get("type")
+                if not path.startswith("docs/") or ".." in path.split("/"):
+                    continue
+                if kind == "file" and str(item.get("name", "")).lower().endswith((".md", ".mdx")):
+                    documents.append(
+                        {
+                            "name": item.get("name"),
+                            "path": path,
+                            "type": kind,
+                            "html_url": item.get("html_url"),
+                        }
+                    )
+                elif kind == "dir" and depth < 3:
+                    pending.append((path, depth + 1))
+
+        documents.sort(key=lambda item: str(item["path"]).lower())
+        return documents
