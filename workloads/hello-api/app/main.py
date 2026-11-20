@@ -64,6 +64,7 @@ def market_dashboard() -> FileResponse:
     )
 
 
+@app.get("/engineering/", include_in_schema=False)
 @app.get("/engineering", include_in_schema=False)
 def engineering_portal() -> FileResponse:
     """Serve the Kaviont Engineering Portal."""
