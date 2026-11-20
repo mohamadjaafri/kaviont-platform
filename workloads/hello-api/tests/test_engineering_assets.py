@@ -14,6 +14,7 @@ def test_engineering_portal_serves_html_and_assets():
     assert 'id="view-repositories"' in page.text
     assert 'id="view-security"' in page.text
     assert 'id="view-runtime"' in page.text
+    assert 'id="kubeEventTable"' in page.text
     assert 'id="view-templates"' in page.text
 
     script = client.get("/engineering/assets/engineering.js")
@@ -23,5 +24,7 @@ def test_engineering_portal_serves_html_and_assets():
     assert 'request("/repositories"' in script.text
     assert 'request("/cloud"' in script.text
     assert 'data-template-download' in script.text
+    assert 'request("/cloud")' in script.text
+    assert '#kubeEventTable' in script.text
     assert stylesheet.status_code == 200
     assert ".portal-shell" in stylesheet.text
