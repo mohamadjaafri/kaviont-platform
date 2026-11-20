@@ -28,3 +28,20 @@ def test_engineering_portal_serves_html_and_assets():
     assert '#kubeEventTable' in script.text
     assert stylesheet.status_code == 200
     assert ".portal-shell" in stylesheet.text
+
+
+def test_engineering_portal_exposes_installable_pwa_manifest_and_worker():
+    manifest = client.get("/engineering/manifest.webmanifest")
+    assert manifest.status_code == 200
+    assert manifest.headers["content-type"].startswith("application/manifest+json")
+    assert manifest.json()["start_url"] == "/engineering/"
+    assert manifest.json()["display"] == "standalone"
+
+    worker = client.get("/engineering/service-worker.js")
+    assert worker.status_code == 200
+    assert worker.headers["service-worker-allowed"] == "/engineering/"
+    assert 'url.pathname.startsWith("/v1/")' in worker.text
+
+    icon = client.get("/engineering/assets/kaviont-icon.svg")
+    assert icon.status_code == 200
+    assert "<svg" in icon.text
