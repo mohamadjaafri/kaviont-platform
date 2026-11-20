@@ -20,6 +20,6 @@ jobs:
       contents: read
       security-events: write
     with:
-      run_dependency_check: \${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+      run_dependency_check: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     secrets:
-      NVD_API_KEY: \${{ secrets.NVD_API_KEY }}
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
