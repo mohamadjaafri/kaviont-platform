@@ -261,7 +261,7 @@ class GitHubClient:
             "summary": advisory.get("summary") or advisory.get("description"),
             "ghsa_id": advisory.get("ghsa_id"),
             "cve_id": next(
-                (identifier.get("value") for identifier in advisory.get("identifiers", [])
+                (identifier.get("value") for identifier in (advisory.get("identifiers") or [])
                  if identifier.get("type") == "CVE"),
                 None,
             ),
@@ -291,7 +291,6 @@ class GitHubClient:
             "severity": (
                 rule.get("security_severity_level")
                 or rule.get("severity")
-                or item.get("rule", {}).get("security_severity_level")
                 or "unknown"
             ),
             "rule_id": rule.get("id"),
