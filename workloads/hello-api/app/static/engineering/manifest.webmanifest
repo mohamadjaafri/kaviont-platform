@@ -3,7 +3,7 @@
   "name": "Kaviont Engineering Platform",
   "short_name": "Kaviont",
   "description": "Repository, DevSecOps, delivery and Kubernetes intelligence.",
-  "start_url": "/engineering?source=installed-app",
+  "start_url": "/engineering/?source=installed-app",
   "scope": "/engineering/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
