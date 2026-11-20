@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -270,6 +272,30 @@ def kubernetes_runtime() -> dict[str, Any]:
         f"https://{service_host}:{service_port}" if service_host else ""
     )
     namespace = os.getenv("KAVIONT_KUBERNETES_NAMESPACE", "default").strip()
+    parsed_api_url = urlparse(api_url)
+    namespace_valid = bool(
+        re.fullmatch(r"[a-z0-9](?:[-a-z0-9]*[a-z0-9])?", namespace)
+        and len(namespace) <= 63
+    )
+    api_url_valid = bool(
+        parsed_api_url.scheme == "https"
+        and parsed_api_url.hostname
+        and not parsed_api_url.username
+        and not parsed_api_url.password
+        and parsed_api_url.path in ("", "/")
+        and not parsed_api_url.query
+        and not parsed_api_url.fragment
+    )
+    if not namespace_valid or (api_url and not api_url_valid):
+        return {
+            "configured": False,
+            "authorized": False,
+            "namespace": namespace,
+            "message": "Kubernetes namespace or API URL configuration is invalid.",
+            "deployments": [],
+            "pods": [],
+            "events": [],
+        }
     token_path = os.getenv(
         "KUBERNETES_TOKEN_FILE",
         "/var/run/secrets/kubernetes.io/serviceaccount/token",
