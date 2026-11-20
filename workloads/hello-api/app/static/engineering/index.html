@@ -137,12 +137,13 @@
 
         <section class="portal-view" id="view-cloud">
           <div class="page-heading"><div><div class="eyebrow">CLOUD ENGINEERING / INFRASTRUCTURE AS CODE</div><h1>Cloud & IaC security</h1><p>Connect infrastructure repositories to configuration, policy and supply-chain checks.</p></div></div>
-          <div class="integration-grid">
+          <div class="integration-grid" id="cloudProviderCards">
             <article class="integration-card"><div class="integration-logo">TF</div><div><h3>Terraform</h3><p>Format, validate, plan policy and module controls.</p><span class="integration-state">Repository-driven</span></div></article>
             <article class="integration-card"><div class="integration-logo trivy-logo">TV</div><div><h3>Trivy IaC</h3><p>Misconfiguration scans for Terraform, Kubernetes and container build files.</p><span class="integration-state">Security workflow</span></div></article>
             <article class="integration-card"><div class="integration-logo checkov-logo">CK</div><div><h3>Checkov</h3><p>Policy-as-code checks for cloud resources and infrastructure templates.</p><span class="integration-state pending">Next connector</span></div></article>
             <article class="integration-card"><div class="integration-logo cloud-logo">AZ</div><div><h3>Azure inventory</h3><p>Subscription resources, policy compliance and cost signals.</p><span class="integration-state pending">Cloud identity not connected</span></div></article>
           </div>
+          <article class="panel"><div class="panel-heading"><div><span class="section-kicker">INFRASTRUCTURE REPOSITORIES</span><h2>Discovered IaC codebases</h2></div><span class="total-pill" id="cloudRepoCount">0 repositories</span></div><div class="table-wrap"><table><thead><tr><th>REPOSITORY</th><th>LANGUAGE</th><th>LAST PUSH</th><th>VISIBILITY</th></tr></thead><tbody id="cloudRepoTable"><tr><td colspan="4" class="table-empty">Loading infrastructure repositories…</td></tr></tbody></table></div></article>
           <article class="panel standards-panel"><div><span class="section-kicker">DESIGN PRINCIPLE</span><h2>Cloud reads are separate from repository reads</h2><p>GitHub access does not grant cloud visibility. Azure, AWS and GCP inventory require their own read-only identities and explicit subscription/account scope.</p></div></article>
         </section>
 
