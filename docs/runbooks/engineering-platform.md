@@ -109,4 +109,8 @@ Self-service supports downloads of four starter archives: Python FastAPI service
 - GET /v1/engineering/templates
 - GET /v1/engineering/templates/{template_id}/download
 
-The API never returns the configured GitHub token.
+The API never returns the configured GitHub token. Engineering API responses use Cache-Control: no-store.
+
+## Access boundary
+
+The initial portal is intended for local development or an internal-only network. The GitHub token is a shared server-side integration credential, so every caller who can reach the API can read the repository information permitted to that token. Do not expose /engineering or /v1/engineering through a public ingress until user authentication, authorization, tenant/repository scoping and audit logging are configured. Use an OIDC/SSO-aware reverse proxy or a first-party authentication layer before any shared or production deployment.
