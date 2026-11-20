@@ -33,3 +33,6 @@ htmlcov/
 
 # Local runtime target discovery files for Prometheus
 .runtime/
+
+# Private home-hosting credentials
+.env.home

@@ -3,7 +3,7 @@ TF_DIR := infrastructure/terraform/environments/dev
 APP_DIR := workloads/hello-api
 CHART_DIR := charts/hello-api
 
-.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check prometheus-check observability-check email-delivery-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-connect-kind observability-down observability-logs database-ui database-ui-down platform-up platform-down platform-status
+.PHONY: fmt fmt-check terraform-bootstrap-validate terraform-validate app-test helm-check gitops-check prometheus-check observability-check email-delivery-check image-build dev-up dev-logs dev-down container-test local-up local-build local-status local-forward local-down observability-up observability-connect-kind observability-down observability-logs database-ui database-ui-down platform-up platform-down platform-status home-up home-down home-logs home-status
 
 fmt:
 	terraform fmt -recursive infrastructure/terraform
@@ -66,6 +66,20 @@ dev-logs:
 
 dev-down:
 	docker compose --profile dev down --remove-orphans
+
+# Persistent self-hosted home server. Requires .env.home (copy from .env.home.example).
+home-up:
+	@test -f .env.home || (echo "Create .env.home from .env.home.example first." && exit 1)
+	docker compose --env-file .env.home -f compose.home.yaml up --build -d
+
+home-logs:
+	docker compose --env-file .env.home -f compose.home.yaml logs -f
+
+home-status:
+	docker compose --env-file .env.home -f compose.home.yaml ps
+
+home-down:
+	docker compose --env-file .env.home -f compose.home.yaml down
 
 container-test:
 	docker compose --profile test run --build --rm hello-api-test

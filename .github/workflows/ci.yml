@@ -59,6 +59,7 @@ jobs:
           printf '[]\n' > .runtime/prometheus-targets/kubernetes-readiness.yml
           docker compose --profile dev --profile test config --quiet
           docker compose --profile observability config --quiet
+          docker compose --env-file .env.home.example -f compose.home.yaml config --quiet
 
       - name: Validate Prometheus configuration, rules, and alert behavior
         run: make prometheus-check
