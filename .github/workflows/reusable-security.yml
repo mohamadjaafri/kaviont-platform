@@ -78,7 +78,7 @@ jobs:
       - name: Publish SBOM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kaviont-sbom-\${{ github.run_id }}
+          name: kaviont-sbom-${{ github.run_id }}
           path: kaviont-sbom.cdx.json
           if-no-files-found: error
           retention-days: 30
@@ -96,7 +96,7 @@ jobs:
       - name: Scan Git history for secrets
         uses: gitleaks/gitleaks-action@v3
         env:
-          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
           GITLEAKS_ENABLE_SUMMARY: "true"
@@ -114,12 +114,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/owasp-dependency-check
-          key: owasp-dc-\${{ runner.os }}-\${{ hashFiles('**/requirements*.txt', '**/pom.xml', '**/build.gradle*', '**/package-lock.json', '**/yarn.lock') }}
+          key: owasp-dc-${{ runner.os }}-${{ hashFiles('**/requirements*.txt', '**/pom.xml', '**/build.gradle*', '**/package-lock.json', '**/yarn.lock') }}
           restore-keys: |
-            owasp-dc-\${{ runner.os }}-
+            owasp-dc-${{ runner.os }}-
       - name: Run OWASP Dependency-Check 13
         env:
-          NVD_API_KEY: \${{ secrets.NVD_API_KEY }}
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           mkdir -p .cache/owasp-dependency-check reports/owasp-dependency-check
           args=(
@@ -130,7 +130,7 @@ jobs:
             --out /report
             --data /usr/share/dependency-check/data
           )
-          if [ -n "\${NVD_API_KEY:-}" ]; then
+          if [ -n "${NVD_API_KEY:-}" ]; then
             args+=(--nvdApiKey "$NVD_API_KEY")
           fi
           docker run --rm \
@@ -138,12 +138,12 @@ jobs:
             -v "$PWD/.cache/owasp-dependency-check:/usr/share/dependency-check/data" \
             -v "$PWD/reports/owasp-dependency-check:/report" \
             owasp/dependency-check:13.0.0 \
-            "\${args[@]}"
+            "${args[@]}"
       - name: Publish OWASP Dependency-Check report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: owasp-dependency-check-\${{ github.run_id }}
+          name: owasp-dependency-check-${{ github.run_id }}
           path: reports/owasp-dependency-check
           if-no-files-found: warn
           retention-days: 30
