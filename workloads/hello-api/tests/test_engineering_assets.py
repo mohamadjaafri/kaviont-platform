@@ -45,3 +45,10 @@ def test_engineering_portal_exposes_installable_pwa_manifest_and_worker():
     icon = client.get("/engineering/assets/kaviont-icon.svg")
     assert icon.status_code == 200
     assert "<svg" in icon.text
+
+
+def test_engineering_portal_slash_route_is_available_for_pwa_start_url():
+    response = client.get("/engineering/")
+
+    assert response.status_code == 200
+    assert "<title>Kaviont Engineering Platform</title>" in response.text
