@@ -278,3 +278,66 @@ def test_owasp_mapping_does_not_force_unknown_cwe():
     assert map_owasp_2025(["external/cwe/cwe-89"]) == "A05:2025 Injection"
     assert map_owasp_2025(["CWE-999999"]) is None
     assert map_owasp_2025(dependency=True) == "A03:2025 Software Supply Chain Failures"
+
+
+def test_security_framework_catalog_exposes_current_versions():
+    response = client.get("/v1/engineering/security/frameworks")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["owasp_top_10"]["version"] == "2025"
+    assert len(payload["owasp_top_10"]["categories"]) == 10
+    assert payload["owasp_asvs"]["version"] == "5.0.0"
+
+
+def test_cloud_inventory_discovers_infrastructure_repositories(monkeypatch):
+    import app.engineering_api as api
+    monkeypatch.setattr(api, "get_github_client", lambda: FakeGitHubClient())
+
+    response = client.get("/v1/engineering/cloud")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["infrastructure_repository_count"] == 1
+    assert payload["infrastructure_repositories"][0]["full_name"] == "example/infra"
+    assert payload["provider_configuration"]["azure"]["inventory_status"] == "not_connected"
+
+
+def test_template_download_returns_safe_zip_archive():
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    response = client.get("/v1/engineering/templates/python-fastapi-service/download")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    assert "attachment" in response.headers["content-disposition"]
+    with ZipFile(BytesIO(response.content)) as archive:
+        names = set(archive.namelist())
+        assert "kaviont-python-fastapi-service/app/main.py" in names
+        assert "kaviont-python-fastapi-service/.github/workflows/ci.yml" in names
+        requirements = archive.read(
+            "kaviont-python-fastapi-service/requirements.txt"
+        ).decode()
+        assert requirements.endswith("\n")
+        assert "uvicorn" in requirements
+
+
+def test_template_download_rejects_unknown_blueprint():
+    response = client.get("/v1/engineering/templates/not-a-template/download")
+
+    assert response.status_code == 404
+
+
+def test_kubernetes_endpoint_rejects_insecure_api_url(monkeypatch):
+    import app.engineering_api as api
+
+    monkeypatch.setenv("KUBERNETES_API_URL", "http://127.0.0.1:8001")
+    monkeypatch.setenv("KAVIONT_KUBERNETES_NAMESPACE", "default")
+    monkeypatch.setattr(api.os.path, "isfile", lambda _path: True)
+
+    response = client.get("/v1/engineering/kubernetes")
+
+    assert response.status_code == 200
+    assert response.json()["configured"] is False
+    assert "API URL configuration is invalid" in response.json()["message"]
