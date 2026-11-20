@@ -468,7 +468,7 @@
         escapeHtml(template.category) + '</span><h3>' + escapeHtml(template.name) + '</h3><p>' +
         escapeHtml(template.description) + '</p><div class="template-stack">' +
         (template.stack || []).map((stack) => '<span>' + escapeHtml(stack) + '</span>').join("") +
-        '</div><span class="template-state">CATALOG READY · GENERATION NOT CONNECTED</span></article>'
+        '</div><button type="button" class="button button-secondary template-download" data-template-download="' + escapeHtml(template.id) + '">Download blueprint ↓</button></article>'
       ).join("");
     } catch (error) {
       $("#templateGrid").innerHTML = '<div class="empty-state">' + escapeHtml(error.message) + '</div>';
@@ -572,6 +572,38 @@
   });
   $("#pipelineReload").addEventListener("click", () => loadPipelines().catch((error) => toast(error.message, "error")));
   $("#runtimeReload").addEventListener("click", () => loadKubernetes().catch((error) => toast(error.message, "error")));
+  $("#templateGrid").addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-template-download]");
+    if (!button) return;
+    const templateId = button.dataset.templateDownload;
+    button.disabled = true;
+    try {
+      const response = await fetch(API + "/templates/" + encodeURIComponent(templateId) + "/download", {
+        credentials: "same-origin",
+        headers: { "Accept": "application/zip" }
+      });
+      if (!response.ok) {
+        let payload = {};
+        try { payload = await response.json(); } catch (_) { /* Non-JSON response. */ }
+        throw new Error(payload.detail || "Template download failed.");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "kaviont-" + templateId + ".zip";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      toast("Blueprint archive created.");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
   $("#refreshAll").addEventListener("click", async () => {
     try {
       await bootstrap();
