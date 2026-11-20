@@ -153,6 +153,9 @@ The self-service catalog currently generates ZIP archives for Python FastAPI, No
 
 Security results are source-attributed. OWASP Top 10:2025 classification is heuristic when the scanner supplies a matching CWE; ASVS 5.0.0 is provided as a verification reference, not as a compliance claim. See docs/runbooks/engineering-platform.md for permissions, setup, API routes and integration boundaries.
 
+
+
+The portal is also an installable Progressive Web App for iOS and Android. Serve it through HTTPS on a hostname reachable by your phone, place authentication/SSO or VPN access in front of both the UI and API, then use Safari's **Share → Add to Home Screen** on iPhone or Chrome's **Install app** on Android. The offline cache contains only the app shell; live repository, security and Kubernetes data always comes from the server. See docs/runbooks/engineering-platform.md for deployment requirements and installation steps.
 ## Validate infrastructure and charts
 
 Terraform and Azure CLI are needed only for the Azure infrastructure workflow. From the repository root:
