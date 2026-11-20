@@ -225,3 +225,10 @@ See CONTRIBUTING.md. The project is licensed under MIT. See LICENSE.
 - Key Vault RBAC guide: https://learn.microsoft.com/en-us/azure/key-vault/general/rbac-guide
 - Argo CD Application specification: https://argo-cd.readthedocs.io/en/stable/user-guide/application-specification/
 - Argo CD automated sync: https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/
+
+
+## Self-host Kaviont at home
+
+You can run Kaviont on an always-on home PC without renting a cloud server. The dedicated `compose.home.yaml` stack starts the API, PostgreSQL and market-data worker in production mode. The API binds only to `127.0.0.1:8080`; use Tailscale Serve for private HTTPS access from your iPhone without router port forwarding.
+
+Start with [the Home Server runbook](docs/runbooks/home-server.md). The Engineering Portal can be installed from iPhone Safari using **Share → Add to Home Screen**. Only the static app shell is cached; live engineering API data is never cached.
