@@ -6,7 +6,7 @@ from typing import Any
 
 TEMPLATES: dict[str, dict[str, Any]] = {
     "python-fastapi-service": {
-        "name": "python-fastapi-service",
+        "name": "Python FastAPI Service",
         "description": "FastAPI service with a health endpoint, tests, Dockerfile and CI security scan workflow.",
         "files": {
             "app/main.py": """from fastapi import FastAPI
@@ -90,7 +90,7 @@ The CI workflow calls the reusable Kaviont security workflow for CodeQL, Trivy, 
         },
     },
     "node-service": {
-        "name": "node-service",
+        "name": "Node.js Service",
         "description": "Node.js HTTP service with built-in tests, non-root container and CI.",
         "files": {
             "src/server.js": """const http = require("node:http");
@@ -183,7 +183,7 @@ Run the service with npm start. Run tests with npm test. The workflow includes t
         },
     },
     "terraform-module": {
-        "name": "terraform-module",
+        "name": "Terraform Module",
         "description": "Reusable Terraform module with typed inputs, outputs and validation workflow.",
         "files": {
             "versions.tf": """terraform {
@@ -279,7 +279,7 @@ This is a reusable module skeleton. Review the example, run terraform fmt -recur
         },
     },
     "helm-workload": {
-        "name": "helm-workload",
+        "name": "Kubernetes Helm Workload",
         "description": "Kubernetes Helm chart with non-root security context, probes, resource limits and Service.",
         "files": {
             "Chart.yaml": """apiVersion: v2
