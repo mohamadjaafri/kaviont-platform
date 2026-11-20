@@ -378,6 +378,35 @@
     }
   }
 
+  async function loadCloud() {
+    const payload = await request("/cloud");
+    const providers = payload.provider_configuration || {};
+    const labels = { azure: "Azure", aws: "AWS", gcp: "Google Cloud" };
+    $("#cloudProviderCards").innerHTML = Object.entries(providers).map(([key, provider]) =>
+      '<article class="integration-card"><div class="integration-logo cloud-logo">' +
+      escapeHtml(key.toUpperCase()) + '</div><div><h3>' + escapeHtml(labels[key] || key) +
+      '</h3><p>' + (provider.configuration_present
+        ? "Cloud configuration variables are present. Identity and inventory access have not yet been verified."
+        : "No cloud identity configuration detected.") +
+      '</p><span class="integration-state pending">' + escapeHtml(provider.inventory_status || "not connected") +
+      '</span></div></article>'
+    ).join("");
+
+    const repositories = payload.infrastructure_repositories || [];
+    $("#cloudRepoCount").textContent = repositories.length + " repositories";
+    $("#cloudRepoTable").innerHTML = repositories.length
+      ? repositories.map((item) =>
+        '<tr data-repo="' + escapeHtml(item.full_name) + '">' +
+        '<td><div class="repo-name"><span class="repo-symbol">IaC</span><span><strong>' +
+        escapeHtml(item.full_name) + '</strong><small>' + escapeHtml(item.description || "Infrastructure codebase") +
+        '</small></span></div></td><td>' + escapeHtml(item.language || "—") +
+        '</td><td>' + escapeHtml(formatRelative(item.pushed_at)) +
+        '</td><td><span class="visibility-pill ' + (item.private ? "private" : "") + '">' +
+        (item.private ? "Private" : "Public") + '</span></td></tr>'
+      ).join("")
+      : '<tr><td colspan="4" class="table-empty">No repositories with IaC language or topics were detected.</td></tr>';
+  }
+
   async function loadKubernetes() {
     const ids = ["#kubeDeployments", "#kubePods", "#kubeNotReady", "#kubeRestarts"];
     ids.forEach((selector) => { $(selector).textContent = "…"; });
@@ -461,6 +490,7 @@
       }
       if (view === "services") await loadServices();
       if (view === "runtime") await loadKubernetes();
+      if (view === "cloud") await loadCloud();
       if (view === "knowledge") await loadKnowledge();
       if (view === "templates") await loadTemplates();
       setLastRefresh();
