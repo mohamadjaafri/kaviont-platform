@@ -6,6 +6,8 @@ import os
 from typing import Any
 from urllib.parse import quote
 
+from app.owasp_mapping import extract_cwes, map_owasp_2025
+
 import httpx
 
 
@@ -258,7 +260,8 @@ class GitHubClient:
                 None,
             ),
             "cwes": [cwe.get("cwe_id") for cwe in cwes if cwe.get("cwe_id")],
-            "fixed_in": vulnerability.get("first_patched_version", {}).get("identifier"),
+            "fixed_in": (vulnerability.get("first_patched_version") or {}).get("identifier"),
+            "owasp_mapping": map_owasp_2025(dependency=True),
             "created_at": item.get("created_at"),
             "html_url": item.get("html_url"),
         }
@@ -272,6 +275,8 @@ class GitHubClient:
         physical = location.get("physical_location") or {}
         artifact = physical.get("artifact_location") or {}
         region = physical.get("region") or {}
+        tags = rule.get("tags") or []
+        cwes = extract_cwes(tags)
         return {
             "source": tool.get("name") or "Code Scanning",
             "kind": "code",
@@ -284,6 +289,8 @@ class GitHubClient:
                 or "unknown"
             ),
             "rule_id": rule.get("id"),
+            "cwes": cwes,
+            "owasp_mapping": map_owasp_2025(tags),
             "summary": rule.get("description") or rule.get("name"),
             "file": artifact.get("uri"),
             "line": region.get("start_line"),
@@ -340,6 +347,7 @@ class GitHubClient:
 
         return {
             "repository": f"{owner}/{repo}",
+            "frameworks": {"owasp_top_10": "2025", "owasp_asvs": "5.0.0", "mapping_note": "Heuristic source-to-category mapping; not an ASVS compliance assessment."},
             "sources": sources,
             "total_open": len(findings),
             "counts": counts,
@@ -347,7 +355,11 @@ class GitHubClient:
         }
 
     def list_knowledge_documents(self) -> list[dict[str, Any]]:
-        payload = self._get("/repos/mohamadjaafri/kaviont-platform/contents/docs")
+        knowledge_repository = os.getenv("KAVIONT_KNOWLEDGE_REPOSITORY", "mohamadjaafri/kaviont-platform").strip()
+        owner, separator, name = knowledge_repository.partition("/")
+        if not separator or not owner or not name or "/" in name:
+            raise ValueError("KAVIONT_KNOWLEDGE_REPOSITORY must use owner/name format")
+        payload = self._get(f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/contents/docs")
         if not isinstance(payload, list):
             return []
         return [
