@@ -280,3 +280,133 @@ tbody tr[data-repo]:hover, tbody tr[data-action]:hover { background: rgba(107,21
   .topbar-actions { gap: 8px; }
   .breadcrumb { font-size: 8px; }
 }
+
+
+/* Installable PWA and touch-first mobile shell */
+.mobile-dock { display: none; }
+.install-dialog {
+  width: min(420px, calc(100vw - 30px));
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 17px;
+  color: var(--text);
+  background: #111b26;
+  box-shadow: 0 22px 80px rgba(0,0,0,.55);
+}
+.install-dialog::backdrop { background: rgba(2,7,12,.72); backdrop-filter: blur(5px); }
+.install-dialog form { padding: 24px; }
+.install-dialog-mark {
+  width: 42px; height: 42px; display: grid; place-items: center;
+  border-radius: 12px; color: #07130e; background: var(--green);
+  font-size: 23px; font-weight: 800;
+}
+.install-dialog h2 { margin: 15px 0 8px; font-size: 19px; }
+.install-dialog p { margin: 0 0 19px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.install-dialog button { width: 100%; }
+.mobile-dock-item:focus-visible, .mobile-more-menu button:focus-visible { outline-offset: -3px; }
+
+@media (max-width: 640px) {
+  html, body { min-height: 100%; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  .portal-shell { min-height: 100dvh; }
+  .sidebar { padding-top: max(12px, env(safe-area-inset-top)); }
+  .sidebar .primary-nav { display: none; }
+  .brand { padding-bottom: 0; }
+  .brand-mark { width: 32px; height: 32px; font-size: 19px; }
+  .brand-copy strong { font-size: 10px; }
+  .brand-copy small { font-size: 7px; }
+  .topbar { height: 49px; padding-left: 13px; padding-right: 13px; }
+  .breadcrumb { gap: 7px; }
+  .breadcrumb > span { display: none; }
+  .breadcrumb i { display: none; }
+  .breadcrumb strong { font-size: 9px; }
+  .topbar-actions { gap: 7px; }
+  .topbar-actions .avatar-link { display: none; }
+  #pwaInstall { min-height: 29px; padding: 0 9px; font-size: 9px; }
+  #refreshAll { min-height: 29px; padding: 0 9px; font-size: 9px; }
+  .page-wrap { padding: 20px 13px calc(88px + env(safe-area-inset-bottom)); }
+  .page-heading h1 { font-size: 26px; }
+  .page-heading p { font-size: 11px; }
+  .panel { border-radius: 10px; }
+  .panel-heading { padding: 13px 14px; }
+  th { padding: 9px 11px; font-size: 7px; }
+  td { padding: 11px; font-size: 9px; }
+  .metric-card { border-radius: 10px; }
+  .metric-card > small { line-height: 1.4; }
+  .module-card { min-height: 57px; }
+  .mobile-dock {
+    position: fixed;
+    z-index: 20;
+    left: 0; right: 0; bottom: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0,1fr));
+    gap: 2px;
+    padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(175,196,217,.16);
+    background: rgba(10,16,23,.96);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+  .mobile-dock-item {
+    min-width: 0;
+    min-height: 46px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: #8393a3;
+    background: transparent;
+    cursor: pointer;
+  }
+  .mobile-dock-item > span { font-size: 17px; line-height: 19px; }
+  .mobile-dock-item > small { font-size: 8px; letter-spacing: .01em; }
+  .mobile-dock-item.active {
+    color: var(--green);
+    border-color: rgba(107,213,163,.12);
+    background: rgba(107,213,163,.07);
+  }
+  .mobile-more-menu {
+    position: absolute;
+    right: 9px;
+    bottom: calc(67px + env(safe-area-inset-bottom));
+    width: min(230px, calc(100vw - 28px));
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 3px;
+    padding: 7px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: #15212d;
+    box-shadow: 0 15px 40px rgba(0,0,0,.45);
+  }
+  .mobile-more-menu[hidden] { display: none !important; }
+  .mobile-more-menu button {
+    min-height: 40px;
+    padding: 0 11px;
+    border: 0;
+    border-radius: 7px;
+    color: #c5d0dc;
+    background: transparent;
+    text-align: left;
+    font-size: 11px;
+  }
+  .mobile-more-menu button:hover { color: var(--green); background: rgba(107,213,163,.07); }
+  .setup-banner { padding: 12px; }
+  .setup-copy p { font-size: 9px; overflow-wrap: anywhere; }
+  .setup-copy code { overflow-wrap: anywhere; }
+  .search-wrap { width: 100%; }
+  .toolbar select { min-width: 0; }
+  .detail-content { gap: 7px; padding-left: 12px; padding-right: 12px; }
+  .detail-lists { padding-left: 12px; padding-right: 12px; }
+}
+@media (max-width: 380px) {
+  .page-wrap { padding-left: 10px; padding-right: 10px; }
+  .metric-card { padding: 11px; }
+  .metric-top { font-size: 8px; }
+  .module-grid { gap: 6px; }
+  .module-card { padding: 9px 7px; }
+  #pwaInstall { font-size: 8px; }
+}
