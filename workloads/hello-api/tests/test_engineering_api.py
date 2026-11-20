@@ -341,3 +341,95 @@ def test_kubernetes_endpoint_rejects_insecure_api_url(monkeypatch):
     assert response.status_code == 200
     assert response.json()["configured"] is False
     assert "API URL configuration is invalid" in response.json()["message"]
+
+
+def test_code_scanning_finding_maps_cwe_and_source_location():
+    item = {
+        "number": 21,
+        "state": "open",
+        "rule": {
+            "id": "py/sql-injection",
+            "description": "User input reaches a SQL query",
+            "severity": "error",
+            "security_severity_level": "high",
+            "tags": ["external/cwe/cwe-89"],
+        },
+        "tool": {"name": "CodeQL"},
+        "most_recent_instance": {
+            "location": {
+                "physical_location": {
+                    "artifact_location": {"uri": "src/database.py"},
+                    "region": {"start_line": 42},
+                }
+            }
+        },
+    }
+
+    finding = GitHubClient._code_scanning_finding(item)
+
+    assert finding["severity"] == "high"
+    assert finding["file"] == "src/database.py"
+    assert finding["line"] == 42
+    assert finding["cwes"] == ["CWE-89"]
+    assert finding["owasp_mapping"] == "A05:2025 Injection"
+
+
+def test_dependabot_finding_handles_optional_dependency_metadata():
+    item = {
+        "number": 9,
+        "state": "open",
+        "security_vulnerability": {
+            "severity": "critical",
+            "package": {"name": "example", "ecosystem": "pip"},
+            "first_patched_version": {"identifier": "2.0.0"},
+        },
+        "security_advisory": {
+            "ghsa_id": "GHSA-example",
+            "identifiers": [{"type": "CVE", "value": "CVE-2026-12345"}],
+            "cwes": [{"cwe_id": "CWE-1104"}],
+            "summary": "Vulnerable dependency",
+        },
+        "dependency": None,
+    }
+
+    finding = GitHubClient._dependabot_finding(item)
+
+    assert finding["severity"] == "critical"
+    assert finding["manifest"] is None
+    assert finding["cve_id"] == "CVE-2026-12345"
+    assert finding["fixed_in"] == "2.0.0"
+    assert finding["owasp_mapping"] == "A03:2025 Software Supply Chain Failures"
+
+
+def test_github_repository_listing_is_paginated(monkeypatch):
+    import app.github_integration as github
+
+    pages = []
+
+    def fake_get(url, headers, params, timeout, follow_redirects):
+        pages.append(params["page"])
+        results = [
+            {
+                "id": page,
+                "name": "repo-" + str(page),
+                "full_name": "example/repo-" + str(page),
+                "private": True,
+                "archived": False,
+                "fork": False,
+                "topics": [],
+            }
+            for page in ([1, 2] if params["page"] == 1 else [])
+        ]
+        return __import__("httpx").Response(
+            200,
+            json=results,
+            request=__import__("httpx").Request("GET", url),
+        )
+
+    monkeypatch.setattr(github.httpx, "get", fake_get)
+    client_instance = GitHubClient("read-token")
+
+    repositories = client_instance.list_repositories(per_page=2)
+
+    assert pages == [1, 2]
+    assert [item["name"] for item in repositories] == ["repo-1", "repo-2"]
