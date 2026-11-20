@@ -3,7 +3,7 @@
 const CACHE_PREFIX = "kaviont-engineering-shell-";
 const CACHE_NAME = CACHE_PREFIX + "v1";
 const APP_SHELL = [
-  "/engineering",
+  "/engineering/",
   "/engineering/manifest.webmanifest",
   "/engineering/assets/engineering.css",
   "/engineering/assets/engineering.js",
@@ -46,7 +46,7 @@ self.addEventListener("fetch", (event) => {
 
   const isAppNavigation =
     request.mode === "navigate" &&
-    (url.pathname === "/engineering" || url.pathname === "/engineering/");
+    (url.pathname === "/engineering/" || url.pathname === "/engineering/");
 
   if (isAppNavigation) {
     event.respondWith(
@@ -54,12 +54,12 @@ self.addEventListener("fetch", (event) => {
         .then((response) => {
           if (response.ok) {
             const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put("/engineering", copy));
+            caches.open(CACHE_NAME).then((cache) => cache.put("/engineering/", copy));
           }
           return response;
         })
         .catch(async () => {
-          const cached = await caches.match("/engineering");
+          const cached = await caches.match("/engineering/");
           if (cached) return cached;
           return new Response(
             "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Kaviont offline</title><body style=\"font:16px system-ui;background:#0a0f15;color:#eef4f9;padding:2rem\"><h1>Kaviont is offline</h1><p>Reconnect to your Kaviont server to load live engineering data.</p></body></html>",
