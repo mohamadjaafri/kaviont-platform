@@ -4,6 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1016">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kaviont">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/engineering/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/engineering/assets/icon-192.png">
   <meta name="description" content="Kaviont Engineering Platform - repository, security and delivery intelligence">
   <title>Kaviont Engineering Platform</title>
   <link rel="stylesheet" href="/engineering/assets/engineering.css">
@@ -44,6 +50,7 @@
         <div class="breadcrumb"><span>ENGINEERING</span><i>/</i><strong id="breadcrumbCurrent">Overview</strong></div>
         <div class="topbar-actions">
           <span class="sync-status"><i></i><span id="lastRefresh">Not synced</span></span>
+          <button class="button button-secondary button-small" id="pwaInstall" type="button" hidden>＋ Install app</button>
           <button class="button button-secondary button-small" id="refreshAll" type="button">↻ Refresh</button>
           <a class="avatar-link" href="https://github.com" target="_blank" rel="noreferrer" aria-label="GitHub">GH</a>
         </div>
@@ -162,6 +169,30 @@
         <div class="toast" id="toast" role="status" aria-live="polite"></div>
       </div>
     </main>
+
+    <nav class="mobile-dock" aria-label="Mobile navigation">
+      <button class="mobile-dock-item active" type="button" data-view="overview"><span>◫</span><small>Home</small></button>
+      <button class="mobile-dock-item" type="button" data-view="repositories"><span>⌘</span><small>Repos</small></button>
+      <button class="mobile-dock-item" type="button" data-view="security"><span>⬡</span><small>Security</small></button>
+      <button class="mobile-dock-item" type="button" data-view="runtime"><span>◉</span><small>Runtime</small></button>
+      <button class="mobile-dock-item" id="mobileMoreToggle" type="button" aria-expanded="false" aria-controls="mobileMoreMenu"><span>···</span><small>More</small></button>
+      <div class="mobile-more-menu" id="mobileMoreMenu" hidden>
+        <button type="button" data-view="pipelines">CI / CD</button>
+        <button type="button" data-view="services">Service catalog</button>
+        <button type="button" data-view="cloud">Cloud & IaC</button>
+        <button type="button" data-view="knowledge">Knowledge hub</button>
+        <button type="button" data-view="templates">Self-service</button>
+      </div>
+    </nav>
   </div>
+
+  <dialog class="install-dialog" id="installHelp">
+    <form method="dialog">
+      <div class="install-dialog-mark">K</div>
+      <h2>Install Kaviont</h2>
+      <p id="installHelpText">Add Kaviont to your device home screen for an app-like experience.</p>
+      <button class="button button-secondary" type="submit">Got it</button>
+    </form>
+  </dialog>
 </body>
 </html>
