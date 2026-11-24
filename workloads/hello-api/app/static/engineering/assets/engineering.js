@@ -281,7 +281,7 @@
       const identifiers = [item.cve_id, item.ghsa_id, item.rule_id].filter(Boolean).join(" · ");
       return '<tr><td><span class="severity-pill ' + escapeHtml(String(item.severity || "unknown").toLowerCase()) + '">' +
         escapeHtml(String(item.severity || "unknown").toUpperCase()) + '</span></td>' +
-        '<td><div class="finding-title"><strong>' + escapeHtml(title) + '</strong><small>' + escapeHtml(identifiers || item.package || "No identifier") + '</small></div></td>' +
+        '<td><div class="finding-title"><strong>' + escapeHtml(title) + '</strong><small>' + escapeHtml((item.priority || "P4") + " · " + (identifiers || item.package || "No identifier")) + '</small><small class="finding-remediation">' + escapeHtml(item.remediation || "Manual review required.") + '</small></div></td>' +
         '<td>' + escapeHtml(item.source || "—") + '</td>' +
         '<td>' + (item.owasp_mapping ? '<span class="owasp-tag">' + escapeHtml(item.owasp_mapping) + '</span>' : '<span class="finding-link">Manual review</span>') + '</td>' +
         '<td>' + (item.html_url ? '<a class="finding-link" href="' + safeUrl(item.html_url) + '" target="_blank" rel="noreferrer">' + escapeHtml(location) + ' ↗</a>' : escapeHtml(location)) + '</td></tr>';
