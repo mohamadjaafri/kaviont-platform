@@ -20,11 +20,30 @@ services:
       LOCAL_DEMO_SECRET: ""
       KAVIONT_ENV: production
       KAVIONT_GITHUB_TOKEN: ${KAVIONT_GITHUB_TOKEN:-}
+      KAVIONT_AUTH_MODE: ${KAVIONT_AUTH_MODE:-tailscale}
+      KAVIONT_ADMIN_USERS: ${KAVIONT_ADMIN_USERS:-}
+      KAVIONT_READER_USERS: ${KAVIONT_READER_USERS:-}
+      KAVIONT_KUBERNETES_NAMESPACE: ${KAVIONT_KUBERNETES_NAMESPACE:-default}
+      KUBERNETES_API_URL: ${KUBERNETES_API_URL:-}
+      KUBERNETES_TOKEN_FILE: /run/secrets/kubernetes/token
+      KUBERNETES_CA_FILE: /run/secrets/kubernetes/ca.crt
+      AZURE_SUBSCRIPTION_ID: ${AZURE_SUBSCRIPTION_ID:-}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_SHARED_CREDENTIALS_FILE: /run/secrets/aws-credentials
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcp-credentials.json
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      GCP_BILLING_EXPORT_TABLE: ${GCP_BILLING_EXPORT_TABLE:-}
+      GCP_BILLING_PROJECT_ID: ${GCP_BILLING_PROJECT_ID:-}
       DATABASE_URL: postgresql://kaviont:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.home}@postgres:5432/kaviont
       KRAKEN_POLL_INTERVAL_SECONDS: ${KRAKEN_POLL_INTERVAL_SECONDS:-60}
       KRAKEN_MARKET_PAIR: ${KRAKEN_MARKET_PAIR:-XBTUSD}
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - ./.kaviont-secrets:/run/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy
