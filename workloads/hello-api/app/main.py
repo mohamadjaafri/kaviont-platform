@@ -12,6 +12,7 @@ from app.market_repository import (
     MarketDataStorageNotConfigured,
 )
 from app.observability import configure_observability
+from app.platform_access import platform_access_middleware
 from app.engineering_api import router as engineering_router
 from app.secrets import secret_is_configured
 
@@ -42,6 +43,8 @@ app.mount(
     StaticFiles(directory=MARKET_DASHBOARD_DIR / "assets"),
     name="market-dashboard-assets",
 )
+
+app.middleware("http")(platform_access_middleware)
 
 configure_observability(app)
 app.include_router(engineering_router)
