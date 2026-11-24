@@ -380,17 +380,35 @@
 
   async function loadCloud() {
     const payload = await request("/cloud");
-    const providers = payload.provider_configuration || {};
+    const providers = payload.providers || {};
     const labels = { azure: "Azure", aws: "AWS", gcp: "Google Cloud" };
-    $("#cloudProviderCards").innerHTML = Object.entries(providers).map(([key, provider]) =>
-      '<article class="integration-card"><div class="integration-logo cloud-logo">' +
-      escapeHtml(key.toUpperCase()) + '</div><div><h3>' + escapeHtml(labels[key] || key) +
-      '</h3><p>' + (provider.configuration_present
-        ? "Cloud configuration variables are present. Identity and inventory access have not yet been verified."
-        : "No cloud identity configuration detected.") +
-      '</p><span class="integration-state pending">' + escapeHtml(provider.inventory_status || "not connected") +
-      '</span></div></article>'
-    ).join("");
+    const statusClass = (status) => status === "connected" ? "success" :
+      status === "unauthorized" || status === "unavailable" ? "failure" : "pending";
+    const formatCost = (cost) => {
+      if (!cost || cost.status !== "available") return "Cost data " + (cost?.status || "not configured");
+      if (typeof cost.amount === "number") {
+        return "MTD " + cost.amount.toLocaleString(undefined, { maximumFractionDigits: 2 }) +
+          (cost.currency ? " " + cost.currency : "");
+      }
+      if (Array.isArray(cost.rows) && cost.rows.length) {
+        return "MTD " + cost.rows.map((row) =>
+          Number(row.total_cost || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) +
+          (row.currency ? " " + row.currency : "")
+        ).join(" · ");
+      }
+      return "MTD cost data available";
+    };
+    $( "#cloudProviderCards" ).innerHTML = Object.entries(providers).map(([key, provider]) => {
+      const status = provider.status || "unavailable";
+      const count = Number(provider.resource_count || 0);
+      const costLabel = formatCost(provider.cost);
+      return '<article class="integration-card"><div class="integration-logo cloud-logo">' +
+        escapeHtml(key.toUpperCase()) + '</div><div><h3>' + escapeHtml(labels[key] || key) +
+        '</h3><p>' + escapeHtml(provider.message || "Read-only cloud connector") +
+        '</p><small>' + count + ' resources · ' + escapeHtml(costLabel) + '</small>' +
+        '<span class="integration-state ' + statusClass(status) + '">' + escapeHtml(status) +
+        '</span></div></article>';
+    }).join("");
 
     const repositories = payload.infrastructure_repositories || [];
     $("#cloudRepoCount").textContent = repositories.length + " repositories";
@@ -405,6 +423,19 @@
         (item.private ? "Private" : "Public") + '</span></td></tr>'
       ).join("")
       : '<tr><td colspan="4" class="table-empty">No repositories with IaC language or topics were detected.</td></tr>';
+
+    const resources = Object.entries(providers).flatMap(([provider, result]) =>
+      (result.resources || []).map((item) => ({ ...item, provider }))
+    );
+    $("#cloudResourceCount").textContent = resources.length + " resources";
+    $("#cloudResourceTable").innerHTML = resources.length
+      ? resources.slice(0, 200).map((item) =>
+        '<tr><td>' + escapeHtml(labels[item.provider] || item.provider) + '</td><td>' +
+        escapeHtml(item.name || item.id || "—") + '</td><td>' +
+        escapeHtml(item.type || "—") + '</td><td>' +
+        escapeHtml(item.location || item.resource_group || "—") + '</td></tr>'
+      ).join("")
+      : '<tr><td colspan="4" class="table-empty">No cloud resources returned. Configure a read-only provider identity to connect inventory.</td></tr>';
   }
 
   async function loadKubernetes() {
@@ -412,11 +443,11 @@
     ids.forEach((selector) => { $(selector).textContent = "…"; });
     try {
       const payload = await request("/kubernetes");
-      $("#kubeNamespace").textContent = "Namespace " + (payload.namespace || "—");
+      $("#kubeNamespace").textContent = "Namespace " + (payload.namespace || "—") + " · " + (payload.cluster_status || "connected");
       if (!payload.configured || payload.authorized === false) {
         ids.forEach((selector) => { $(selector).textContent = "—"; });
         const message = payload.message || "Kubernetes read-only access is not configured.";
-        $("#deploymentTable").innerHTML = '<tr><td colspan="4" class="table-empty">' + escapeHtml(message) + '</td></tr>';
+        $("#deploymentTable").innerHTML = '<tr><td colspan="5" class="table-empty">' + escapeHtml(message) + '</td></tr>';
         $("#podTable").innerHTML = '<tr><td colspan="5" class="table-empty">' + escapeHtml(message) + '</td></tr>';
         return;
       }
@@ -427,8 +458,10 @@
       $("#deploymentTable").innerHTML = (payload.deployments || []).length
         ? payload.deployments.map((item) => '<tr><td>' + escapeHtml(item.name) + '</td><td>' +
           Number(item.ready_replicas || 0) + ' / ' + Number(item.replicas || 0) + '</td><td>' +
-          Number(item.available_replicas || 0) + '</td><td>' + escapeHtml(item.image || "—") + '</td></tr>').join("")
-        : '<tr><td colspan="4" class="table-empty">No deployments found in this namespace.</td></tr>';
+          Number(item.available_replicas || 0) + '</td><td><span class="status-pill ' +
+          (item.rollout_status === "complete" ? "success" : item.rollout_status === "failed" ? "failure" : "pending") + '">' +
+          escapeHtml(item.rollout_status || "unknown") + '</span></td><td>' + escapeHtml(item.image || "—") + '</td></tr>').join("")
+        : '<tr><td colspan="5" class="table-empty">No deployments found in this namespace.</td></tr>';
       $("#podTable").innerHTML = (payload.pods || []).length
         ? payload.pods.map((item) => '<tr><td>' + escapeHtml(item.name) + '</td><td>' +
           '<span class="status-pill ' + (item.phase === "Running" ? "success" : "failure") + '">' + escapeHtml(item.phase || "unknown") + '</span></td><td>' +
@@ -442,7 +475,7 @@
         : '<tr><td colspan="5" class="table-empty">No recent events found.</td></tr>';
     } catch (error) {
       ids.forEach((selector) => { $(selector).textContent = "—"; });
-      $("#deploymentTable").innerHTML = '<tr><td colspan="4" class="table-empty">' + escapeHtml(error.message) + '</td></tr>';
+      $("#deploymentTable").innerHTML = '<tr><td colspan="5" class="table-empty">' + escapeHtml(error.message) + '</td></tr>';
       $("#podTable").innerHTML = '<tr><td colspan="5" class="table-empty">Kubernetes connection unavailable.</td></tr>';
       $("#kubeEventTable").innerHTML = '<tr><td colspan="5" class="table-empty">Kubernetes connection unavailable.</td></tr>';
       throw error;
