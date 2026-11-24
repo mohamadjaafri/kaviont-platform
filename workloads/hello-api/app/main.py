@@ -13,6 +13,7 @@ from app.market_repository import (
 )
 from app.observability import configure_observability
 from app.engineering_api import router as engineering_router
+from app.price_alerts_api import router as price_alerts_router
 from app.secrets import secret_is_configured
 
 environment = os.getenv("KAVIONT_ENV", "production").strip().lower()
@@ -45,6 +46,7 @@ app.mount(
 
 configure_observability(app)
 app.include_router(engineering_router)
+app.include_router(price_alerts_router)
 
 
 @app.middleware("http")

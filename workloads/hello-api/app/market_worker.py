@@ -20,9 +20,11 @@ from app.financial import (
 )
 from app.market_repository import MarketDataRepository
 from app.observability import configure_worker_observability
+from app.price_alerts import PriceAlertRepository
 
 logger = logging.getLogger("kaviont.market-data-worker")
 TickerFetcher = Callable[[str], Awaitable[dict[str, object]]]
+AlertEvaluator = Callable[[dict[str, object]], int]
 
 
 def _error_category(error: Exception) -> str:
@@ -39,8 +41,9 @@ async def poll_once(
     pair: str,
     worker_instance: str,
     fetcher: TickerFetcher = fetch_kraken_ticker,
+    alert_evaluator: AlertEvaluator | None = None,
 ) -> bool:
-    """Run one fetch cycle and persist only valid successful snapshots."""
+    """Fetch, persist, then evaluate matching price alerts for one snapshot."""
     repository.record_attempt(pair, worker_instance)
     try:
         snapshot = await fetcher(pair)
@@ -54,6 +57,8 @@ async def poll_once(
         return False
 
     repository.save_snapshot(snapshot, worker_instance)
+    if alert_evaluator is not None:
+        alert_evaluator(snapshot)
     return True
 
 
@@ -92,6 +97,7 @@ async def run_worker() -> None:
 
     configure_worker_observability()
     repository = MarketDataRepository(database_url)
+    alert_repository = PriceAlertRepository(database_url)
     worker_instance = f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -128,9 +134,10 @@ async def run_worker() -> None:
                     repository,
                     pair=pair,
                     worker_instance=worker_instance,
+                    alert_evaluator=alert_repository.evaluate_snapshot,
                 )
             except psycopg.Error:
-                logger.exception("Could not persist market-data worker state")
+                logger.exception("Could not persist market-data worker state or evaluate alerts")
             try:
                 await asyncio.wait_for(
                     stop_event.wait(),
