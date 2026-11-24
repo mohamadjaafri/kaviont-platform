@@ -107,6 +107,9 @@ jobs:
     name: OWASP Dependency-Check
     if: inputs.run_dependency_check
     runs-on: ubuntu-latest
+    concurrency:
+      group: kaviont-owasp-dependency-check
+      cancel-in-progress: false
     permissions:
       contents: read
     steps:
@@ -116,9 +119,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/owasp-dependency-check
-          key: owasp-dc-${{ runner.os }}-${{ hashFiles('**/requirements*.txt', '**/pom.xml', '**/build.gradle*', '**/package-lock.json', '**/yarn.lock') }}
+          key: owasp-dc-${{ runner.os }}-v2-${{ hashFiles('**/requirements*.txt', '**/pom.xml', '**/build.gradle*', '**/package-lock.json', '**/yarn.lock') }}
           restore-keys: |
-            owasp-dc-${{ runner.os }}-
+            owasp-dc-${{ runner.os }}-v2-
       - name: Run OWASP Dependency-Check 13
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
@@ -133,8 +136,12 @@ jobs:
             --data /usr/share/dependency-check/data
           )
           if [ -n "${NVD_API_KEY:-}" ]; then
-            args+=(--nvdApiKey "$NVD_API_KEY")
+            args+=(--nvdApiKey "$NVD_API_KEY" --nvdApiDelay 3500)
+          else
+            # NVD requires a slower request cadence without an API key.
+            args+=(--nvdApiDelay 8000)
           fi
+          args+=(--nvdMaxRetryCount 10 --nvdValidForHours 24)
           docker run --rm \
             -v "$PWD:/src:ro" \
             -v "$PWD/.cache/owasp-dependency-check:/usr/share/dependency-check/data" \
