@@ -36,3 +36,7 @@ htmlcov/
 
 # Private home-hosting credentials
 .env.home
+
+# Read-only cloud and Kubernetes credentials for the self-hosted stack
+.kaviont-secrets/*
+!.kaviont-secrets/.gitkeep
