@@ -131,7 +131,7 @@ def _azure_inventory() -> dict[str, Any]:
 
 def _aws_inventory() -> dict[str, Any]:
     if not any(os.getenv(key, "").strip() for key in (
-        "AWS_ACCESS_KEY_ID", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_PROFILE", "AWS_ROLE_ARN"
+        "AWS_ACCESS_KEY_ID", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_PROFILE", "AWS_ROLE_ARN", "AWS_SHARED_CREDENTIALS_FILE"
     )):
         return _empty(message="Configure temporary AWS credentials or a workload identity.")
     try:
