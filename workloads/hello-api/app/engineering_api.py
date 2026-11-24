@@ -13,6 +13,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
+from app.cloud_inventory import get_cloud_inventory
 from app.engineering_templates import get_template, list_templates
 from app.github_integration import (
     GitHubAPIError,
@@ -221,48 +222,44 @@ def security_frameworks() -> dict[str, Any]:
 
 @router.get("/cloud")
 def cloud_iac_inventory() -> dict[str, Any]:
-    """Discover infrastructure repositories; provider flags show config presence only."""
-    client = _client_or_503()
+    """Return connected cloud inventory and repository-based IaC discovery."""
+    repositories: list[dict[str, Any]] = []
+    github_status = "not_configured"
     try:
-        repositories = client.list_repositories(per_page=100)
-    except GitHubAPIError as exc:
-        raise _github_error(exc) from exc
+        client = get_github_client()
+        all_repositories = client.list_repositories(per_page=100)
+        repositories = [
+            item for item in all_repositories
+            if str(item.get("language") or "").lower() in {"hcl", "bicep"}
+            or any(
+                topic in item.get("topics", [])
+                for topic in ("terraform", "infrastructure", "iac", "platform", "cloud")
+            )
+        ]
+        github_status = "connected"
+    except GitHubIntegrationNotConfigured:
+        github_status = "not_configured"
+    except GitHubAPIError:
+        github_status = "unavailable"
+    except ValueError:
+        github_status = "invalid_configuration"
 
-    infrastructure = [
-        item for item in repositories
-        if str(item.get("language") or "").lower() in {"hcl", "bicep"}
-        or any(
-            topic in item.get("topics", [])
-            for topic in ("terraform", "infrastructure", "iac", "platform", "cloud")
-        )
-    ]
+    providers = get_cloud_inventory()
     return {
-        "infrastructure_repository_count": len(infrastructure),
-        "infrastructure_repositories": infrastructure,
+        "infrastructure_repository_count": len(repositories),
+        "infrastructure_repositories": repositories,
+        "github_discovery_status": github_status,
+        "providers": providers,
         "provider_configuration": {
-            "azure": {
-                "configuration_present": bool(
-                    os.getenv("AZURE_SUBSCRIPTION_ID", "").strip()
-                    and os.getenv("AZURE_TENANT_ID", "").strip()
-                ),
-                "inventory_status": "not_connected",
-            },
-            "aws": {
-                "configuration_present": bool(
-                    os.getenv("AWS_ROLE_ARN", "").strip()
-                    or os.getenv("AWS_PROFILE", "").strip()
-                ),
-                "inventory_status": "not_connected",
-            },
-            "gcp": {
-                "configuration_present": bool(
-                    os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
-                    or os.getenv("GCP_PROJECT", "").strip()
-                ),
-                "inventory_status": "not_connected",
-            },
+            key: {
+                "configuration_present": value.get("status") not in {"not_configured"},
+                "inventory_status": value.get("status", "unavailable"),
+                "resource_count": value.get("resource_count", 0),
+                "cost_status": (value.get("cost") or {}).get("status", "unavailable"),
+            }
+            for key, value in providers.items()
         },
-        "message": "Cloud provider configuration is not the same as a verified cloud inventory connection.",
+        "message": "Cloud inventory and cost queries are read-only. Each provider has an independent connection status.",
     }
 
 
@@ -321,6 +318,16 @@ def kubernetes_runtime() -> dict[str, Any]:
     try:
         with open(token_path, encoding="utf-8") as token_file:
             token = token_file.read().strip()
+        if not token:
+            return {
+                "configured": False,
+                "authorized": False,
+                "namespace": namespace,
+                "message": "Kubernetes token file is empty. Configure a read-only service-account token.",
+                "deployments": [],
+                "pods": [],
+                "events": [],
+            }
         verify: str | bool = ca_path if os.path.isfile(ca_path) else True
         with httpx.Client(
             base_url=api_url.rstrip("/"),
@@ -354,14 +361,46 @@ def kubernetes_runtime() -> dict[str, Any]:
         event_items = event_response.json().get("items", [])
         deployments = []
         for item in deployment_items:
+            metadata = item.get("metadata", {})
             status = item.get("status", {})
             spec = item.get("spec", {})
+            desired = int(spec.get("replicas", 0) or 0)
+            ready = int(status.get("readyReplicas", 0) or 0)
+            available = int(status.get("availableReplicas", 0) or 0)
+            updated = int(status.get("updatedReplicas", 0) or 0)
+            generation = int(metadata.get("generation", 0) or 0)
+            observed_generation = int(status.get("observedGeneration", 0) or 0)
+            conditions = status.get("conditions") or []
+            deadline_exceeded = any(
+                condition.get("type") == "Progressing"
+                and condition.get("status") == "False"
+                and condition.get("reason") == "ProgressDeadlineExceeded"
+                for condition in conditions
+            )
+            if deadline_exceeded:
+                rollout_status = "failed"
+            elif observed_generation < generation or updated < desired or available < desired:
+                rollout_status = "progressing"
+            else:
+                rollout_status = "complete"
             deployments.append({
-                "name": item.get("metadata", {}).get("name"),
-                "replicas": spec.get("replicas", 0),
-                "ready_replicas": status.get("readyReplicas", 0),
-                "available_replicas": status.get("availableReplicas", 0),
-                "updated_replicas": status.get("updatedReplicas", 0),
+                "name": metadata.get("name"),
+                "replicas": desired,
+                "ready_replicas": ready,
+                "available_replicas": available,
+                "updated_replicas": updated,
+                "generation": generation,
+                "observed_generation": observed_generation,
+                "rollout_status": rollout_status,
+                "conditions": [
+                    {
+                        "type": condition.get("type"),
+                        "status": condition.get("status"),
+                        "reason": condition.get("reason"),
+                        "message": condition.get("message"),
+                    }
+                    for condition in conditions
+                ],
                 "image": (
                     (spec.get("template", {}).get("spec", {}).get("containers") or [{}])[0].get("image")
                 ),
@@ -389,10 +428,21 @@ def kubernetes_runtime() -> dict[str, Any]:
             }
             for item in event_items
         ]
+        rollout_failures = sum(1 for deployment in deployments if deployment["rollout_status"] == "failed")
+        rollout_in_progress = sum(1 for deployment in deployments if deployment["rollout_status"] == "progressing")
+        namespace_health = (
+            "unknown" if not deployments and not pods
+            else "degraded" if rollout_failures or any(not pod["ready"] for pod in pods)
+            else "progressing" if rollout_in_progress
+            else "healthy"
+        )
         return {
             "configured": True,
             "authorized": True,
             "namespace": namespace,
+            "cluster_status": namespace_health,
+            "rollout_failures": rollout_failures,
+            "rollouts_in_progress": rollout_in_progress,
             "deployment_count": len(deployments),
             "pod_count": len(pods),
             "not_ready_pods": sum(1 for pod in pods if not pod["ready"]),
