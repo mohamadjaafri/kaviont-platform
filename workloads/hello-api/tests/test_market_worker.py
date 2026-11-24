@@ -98,3 +98,34 @@ def test_worker_records_timeout_category() -> None:
 
     assert success is False
     assert repository.failures == [("XBTUSD", "worker-test", "timeout")]
+
+
+def test_worker_evaluates_alerts_after_persisting_snapshot() -> None:
+    events = []
+
+    class OrderedRepository(RecordingRepository):
+        def save_snapshot(self, snapshot, worker_instance):
+            super().save_snapshot(snapshot, worker_instance)
+            events.append("snapshot_saved")
+
+    repository = OrderedRepository()
+
+    async def fetcher(pair: str) -> dict[str, object]:
+        return sample_ticker(pair)
+
+    def evaluate_alerts(snapshot):
+        events.append(("alerts_evaluated", snapshot["pair"]))
+        return 0
+
+    success = run(
+        poll_once(
+            repository,
+            pair="XBTUSD",
+            worker_instance="worker-test",
+            fetcher=fetcher,
+            alert_evaluator=evaluate_alerts,
+        )
+    )
+
+    assert success is True
+    assert events == ["snapshot_saved", ("alerts_evaluated", "XBTUSD")]
