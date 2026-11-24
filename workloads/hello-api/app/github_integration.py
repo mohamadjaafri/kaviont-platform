@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import quote
 
 from app.owasp_mapping import extract_cwes, map_owasp_2025
+from app.security_remediation import remediation_for_cwes, remediation_for_dependency
 
 import httpx
 
@@ -249,13 +250,18 @@ class GitHubClient:
         advisory = item.get("security_advisory") or {}
         cwes = advisory.get("cwes") or []
         dependency = item.get("dependency") or {}
+        fixed_in = (vulnerability.get("first_patched_version") or {}).get("identifier")
+        package_name = package.get("name")
+        severity = vulnerability.get("severity") or advisory.get("severity") or "unknown"
         return {
             "source": "Dependabot",
             "kind": "dependency",
             "number": item.get("number"),
             "state": item.get("state"),
-            "severity": vulnerability.get("severity") or advisory.get("severity") or "unknown",
-            "package": package.get("name"),
+            "severity": severity,
+            "priority": {"critical": "P0", "high": "P1", "medium": "P2", "moderate": "P2", "low": "P3"}.get(str(severity).lower(), "P4"),
+            "remediation": remediation_for_dependency(package_name, fixed_in),
+            "package": package_name,
             "ecosystem": package.get("ecosystem"),
             "manifest": dependency.get("manifest_path"),
             "summary": advisory.get("summary") or advisory.get("description"),
@@ -266,7 +272,7 @@ class GitHubClient:
                 None,
             ),
             "cwes": [cwe.get("cwe_id") for cwe in cwes if cwe.get("cwe_id")],
-            "fixed_in": (vulnerability.get("first_patched_version") or {}).get("identifier"),
+            "fixed_in": fixed_in,
             "owasp_mapping": map_owasp_2025(dependency=True),
             "created_at": item.get("created_at"),
             "html_url": item.get("html_url"),
@@ -295,6 +301,8 @@ class GitHubClient:
             ),
             "rule_id": rule.get("id"),
             "cwes": cwes,
+            "priority": {"critical": "P0", "high": "P1", "medium": "P2", "moderate": "P2", "low": "P3"}.get(str(rule.get("security_severity_level") or rule.get("severity") or "unknown").lower(), "P4"),
+            "remediation": remediation_for_cwes(cwes),
             "owasp_mapping": map_owasp_2025(tags),
             "summary": rule.get("description") or rule.get("name"),
             "file": artifact.get("uri"),
