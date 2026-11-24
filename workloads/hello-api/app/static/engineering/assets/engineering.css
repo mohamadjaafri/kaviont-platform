@@ -296,3 +296,5 @@ tbody tr[data-repo]:hover, tbody tr[data-action]:hover { background: rgba(107,21
     padding-top: max(12px, env(safe-area-inset-top));
   }
 }
+
+.finding-remediation { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.45; white-space: normal; }
