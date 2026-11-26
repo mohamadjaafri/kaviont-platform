@@ -116,7 +116,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v6
       - name: Cache Dependency-Check data
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .cache/owasp-dependency-check
           key: owasp-dc-${{ runner.os }}-v2-${{ hashFiles('**/requirements*.txt', '**/pom.xml', '**/build.gradle*', '**/package-lock.json', '**/yarn.lock') }}
